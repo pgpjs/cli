@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pgpjs.dev/schemas/v1/encrypt.json",
+  "title": "encrypt data",
+  "type": "object",
+  "required": ["operation", "output"],
+  "properties": {
+    "operation": { "const": "encrypt" },
+    "output": { "type": "string" },
+    "recipients": { "type": "array", "items": { "type": "string" } },
+    "armored": { "type": "boolean" }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pgpjs.dev/schemas/v1/envelope.json",
+  "title": "PGPJS CLI JSON envelope v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "version", "command", "data"],
+      "properties": {
+        "ok": { "const": true },
+        "version": { "const": 1 },
+        "command": { "type": "string" },
+        "data": { "type": "object" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "version", "command", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "version": { "const": 1 },
+        "command": { "type": "string" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "details"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "details": { "type": "object" },
+            "hint": { "type": "string" }
+          }
+        }
+      }
+    }
+  ]
+}

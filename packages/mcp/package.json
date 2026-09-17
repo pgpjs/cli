@@ -1,0 +1,32 @@
+{
+  "name": "@pgpjs/mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server, tools, and token store for PGPJS",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@pgpjs/config": "workspace:*",
+    "@pgpjs/core": "workspace:*",
+    "@pgpjs/security": "workspace:*",
+    "zod": "^3.25.76"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
