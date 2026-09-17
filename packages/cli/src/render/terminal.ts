@@ -2,7 +2,6 @@ import chalk from "chalk";
 import type { Command, Help } from "commander";
 
 const ACCENT = "#3B82F6";
-const WIDTH = 64;
 const ESC = String.fromCharCode(27);
 const ANSI = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
@@ -16,6 +15,12 @@ export function wantsColor(): boolean {
 
 export function stripAnsi(s: string): string {
   return s.replace(ANSI, "");
+}
+
+export function screenWidth(): number {
+  const n = Number(process.stdout.columns);
+  if (!Number.isFinite(n) || n < 40) return 72;
+  return Math.max(56, Math.min(88, n));
 }
 
 function padEndVis(s: string, n: number): string {
@@ -35,23 +40,27 @@ function paint(enabled: boolean) {
   return { hex, dim, bold, white, green, yellow, red };
 }
 
-function spread(left: string, right: string, width = WIDTH): string {
+function spread(left: string, right: string, width: number): string {
   const gap = Math.max(1, width - stripAnsi(left).length - stripAnsi(right).length);
   return `${left}${" ".repeat(gap)}${right}`;
 }
 
-export function formatChromeHeader(color: boolean): string {
-  const c = paint(color);
-  return `${spread(c.dim("pgpjs"), c.hex("PGPJS CLI"))}\n${c.dim("─".repeat(WIDTH))}`;
+function rule(color: boolean, width: number): string {
+  return paint(color).dim("─".repeat(width));
 }
 
-export function formatChromeFooter(color: boolean): string {
+export function formatChromeHeader(color: boolean, width = screenWidth()): string {
   const c = paint(color);
-  return `${c.dim("─".repeat(WIDTH))}\n${spread(c.dim("PGP / OpenPGP"), c.hex("READY • LOCAL CRYPTO"))}`;
+  return `${spread(c.dim("pgpjs"), c.hex("PGPJS CLI"), width)}\n${rule(color, width)}`;
 }
 
-export function formatScreen(color: boolean, body: string[]): string {
-  return [formatChromeHeader(color), "", ...body, "", formatChromeFooter(color)].join("\n");
+export function formatChromeFooter(color: boolean, width = screenWidth()): string {
+  const c = paint(color);
+  return `${rule(color, width)}\n${spread(c.dim("PGP / OpenPGP"), c.hex("READY · LOCAL CRYPTO"), width)}`;
+}
+
+export function formatScreen(color: boolean, body: string[], width = screenWidth()): string {
+  return [formatChromeHeader(color, width), "", ...body, "", formatChromeFooter(color, width)].join("\n");
 }
 
 export function printScreen(color: boolean, body: string[]): void {
@@ -91,7 +100,7 @@ export function boxLines(color: boolean, lines: string[], tone: "blue" | "yellow
   const c = paint(color);
   const paintBox = tone === "yellow" ? c.yellow : c.hex;
   const inner = Math.max(20, ...lines.map((l) => stripAnsi(l).length + 2));
-  const width = Math.min(WIDTH - 4, inner);
+  const width = Math.min(screenWidth() - 4, inner);
   const out = [`  ${paintBox(`┌${"─".repeat(width)}┐`)}`];
   for (const line of lines) {
     out.push(`  ${paintBox("│")}${padEndVis(` ${line}`, width)}${paintBox("│")}`);
@@ -180,9 +189,14 @@ function examplesFor(path: string): string[] {
   return EXAMPLES_BY_COMMAND[path] ?? [];
 }
 
+function tidyOptionDescription(text: string): string {
+  if (/display help for command/i.test(text)) return "Show this screen";
+  return text;
+}
+
 function versionBadge(color: boolean, version: string): string[] {
   const c = paint(color);
-  const inner = 14;
+  const inner = 12;
   const label = padEndVis(` CLI ${version} `, inner);
   return [
     `  ${c.hex(`┌${"─".repeat(inner)}┐`)}`,
@@ -203,46 +217,57 @@ function zipColumns(left: string[], right: string[], gap = 3): string[] {
   return out;
 }
 
+function namedList(color: boolean, items: Array<[string, string]>, nameWidth = 12): string[] {
+  const c = paint(color);
+  const w = Math.max(nameWidth, ...items.map(([name]) => name.length));
+  return items.map(([name, desc]) => `  ${c.hex(padEndVis(name, w + 2))}${c.dim(desc)}`);
+}
+
+function prettyUsage(cmd: Command, helper: Help): string {
+  const path = commandPath(cmd);
+  const args = helper.visibleArguments(cmd).map((a) => helper.argumentTerm(a));
+  const subs = helper.visibleCommands(cmd).filter((sub) => sub.name() !== "help");
+  const parts = [path, ...args];
+  if (subs.length > 0) parts.push("<command>");
+  parts.push("[options]");
+  return parts.join(" ");
+}
+
 export function formatRootHelp(color = wantsColor(), version = "1.0.0"): string {
   const c = paint(color);
+  const width = screenWidth();
+
   const icon = [
-    "      ╭───╮",
-    "     ╱     ╲━━━━┓",
-    "     ╲     ╱    ┃",
-    "      ╰───╯     ┃",
-    "       ▪ ▪"
+    "      ____",
+    "     /    \\________",
+    "     \\____/",
+    "       oo"
   ].map((row) => c.hex(row));
 
   const title = [
     c.bold(c.white("PGPJS CLI")),
     c.dim("OpenPGP encryption toolkit"),
-    c.dim("JavaScript  •  secure keys  •  encrypt  •  decrypt  •  sign  •  verify"),
-    "",
     ...versionBadge(color, version).map((row) => row.replace(/^ {2}/, ""))
   ];
 
   const body: string[] = [
-    ...zipColumns(icon, title),
+    ...zipColumns(icon, title).map((row) => `  ${row}`),
     "",
-    c.dim("─".repeat(WIDTH)),
-    "",
-    `  ${c.dim(">")} ${c.white("pgpjs --help")}`,
-    "",
-    muted(color, "OpenPGP.js command-line interface"),
+    rule(color, width),
     "",
     ...ROOT_EXAMPLES.map((ex) => promptLine(color, ex)),
     "",
-    heading(color, "Usage:"),
-    `  ${c.hex("pgpjs")} <command> [options]`,
+    heading(color, "Usage"),
+    `  ${c.hex("pgpjs")} ${c.dim("<command> [options]")}`,
     "",
-    heading(color, "Commands:"),
-    ...COMMANDS.map(([name, desc]) => `  ${c.hex(padEndVis(name, 14))}${c.dim(desc)}`),
+    heading(color, "Commands"),
+    ...namedList(color, COMMANDS),
     "",
-    heading(color, "Options:"),
-    ...OPTIONS.map(([name, desc]) => `  ${c.hex(padEndVis(name, 14))}${c.dim(desc)}`)
+    heading(color, "Options"),
+    ...namedList(color, OPTIONS)
   ];
 
-  return formatScreen(color, body);
+  return formatScreen(color, body, width);
 }
 
 export function printRootHelp(color = wantsColor(), version = "1.0.0"): void {
@@ -264,57 +289,63 @@ export function printVersion(color = wantsColor(), version = "1.0.0"): void {
 
 export function formatCommandHelp(cmd: Command, helper: Help, color = wantsColor()): string {
   const c = paint(color);
+  const width = screenWidth();
   const path = commandPath(cmd);
-  const usage = helper.commandUsage(cmd);
   const description = helper.commandDescription(cmd);
   const args = helper.visibleArguments(cmd);
   const options = helper.visibleOptions(cmd);
-  const commands = helper.visibleCommands(cmd);
+  const commands = helper.visibleCommands(cmd).filter((sub) => sub.name() !== "help");
   const examples = examplesFor(path);
 
   const body: string[] = [
     heading(color, path),
     muted(color, description || "OpenPGP encryption toolkit"),
     "",
-    heading(color, "Usage:"),
-    `  ${c.hex(usage)}`
+    heading(color, "Usage"),
+    `  ${c.hex(prettyUsage(cmd, helper))}`
   ];
 
   if (args.length > 0) {
-    body.push("", heading(color, "Arguments:"));
-    const w = Math.max(12, ...args.map((a) => helper.argumentTerm(a).length));
-    for (const a of args) {
-      body.push(`  ${c.hex(padEndVis(helper.argumentTerm(a), w + 2))}${c.dim(helper.argumentDescription(a))}`);
-    }
+    body.push("", heading(color, "Arguments"));
+    body.push(
+      ...namedList(
+        color,
+        args.map((a) => [helper.argumentTerm(a), helper.argumentDescription(a)]),
+        12
+      )
+    );
   }
 
   if (commands.length > 0) {
-    body.push("", heading(color, "Commands:"));
-    const w = Math.max(12, ...commands.map((sub) => helper.subcommandTerm(sub).length));
-    for (const sub of commands) {
-      if (sub.name() === "help") continue;
-      body.push(
-        `  ${c.hex(padEndVis(helper.subcommandTerm(sub), w + 2))}${c.dim(helper.subcommandDescription(sub))}`
-      );
-    }
+    body.push("", heading(color, "Commands"));
+    body.push(
+      ...namedList(
+        color,
+        commands.map((sub) => [helper.subcommandTerm(sub), helper.subcommandDescription(sub)]),
+        12
+      )
+    );
   }
 
   if (options.length > 0) {
-    body.push("", heading(color, "Options:"));
-    const w = Math.max(14, ...options.map((o) => helper.optionTerm(o).length));
-    for (const o of options) {
-      body.push(`  ${c.hex(padEndVis(helper.optionTerm(o), w + 2))}${c.dim(helper.optionDescription(o))}`);
-    }
+    body.push("", heading(color, "Options"));
+    body.push(
+      ...namedList(
+        color,
+        options.map((o) => [helper.optionTerm(o), tidyOptionDescription(helper.optionDescription(o))]),
+        12
+      )
+    );
   }
 
   if (examples.length > 0) {
-    body.push("", heading(color, "Examples:"));
+    body.push("", heading(color, "Examples"));
     for (const ex of examples) {
       body.push(promptLine(color, ex));
     }
   }
 
-  return formatScreen(color, body);
+  return formatScreen(color, body, width);
 }
 
 export function formatJsonHelp(version = "1.0.0"): string {
@@ -344,7 +375,7 @@ export function formatJsonCommandHelp(cmd: Command, helper: Help, version = "1.0
       product: "PGPJS CLI",
       cliVersion: version,
       description: helper.commandDescription(cmd),
-      usage: helper.commandUsage(cmd),
+      usage: prettyUsage(cmd, helper),
       commands: helper
         .visibleCommands(cmd)
         .filter((sub) => sub.name() !== "help")
@@ -354,7 +385,7 @@ export function formatJsonCommandHelp(cmd: Command, helper: Help, version = "1.0
         })),
       options: helper.visibleOptions(cmd).map((o) => ({
         flags: helper.optionTerm(o),
-        description: helper.optionDescription(o)
+        description: tidyOptionDescription(helper.optionDescription(o))
       })),
       arguments: helper.visibleArguments(cmd).map((a) => ({
         name: helper.argumentTerm(a),

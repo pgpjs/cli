@@ -66,8 +66,10 @@ describe("CLI help", () => {
     expect(text).toContain("OpenPGP encryption toolkit");
     expect(text).toContain("$ pgpjs key generate");
     expect(text).toContain("$ pgpjs encrypt message.txt");
-    expect(text).toContain("READY • LOCAL CRYPTO");
-    expect(text).toContain("init");
+    expect(text).toContain("READY · LOCAL CRYPTO");
+    expect(text).toContain("____");
+    expect(text).toContain("oo");
+    expect(text).not.toContain("http://");
     expect(text).toContain("encrypt");
     expect(text).toContain("mcp");
     expect(text).toContain("pgpjs");
@@ -79,12 +81,15 @@ describe("CLI help", () => {
 
   it("aligns the CLI version badge", () => {
     const lines = formatVersion(false, "1.0.0").split("\n");
-    const top = lines.find((l) => l.includes("┌"));
     const mid = lines.find((l) => l.includes("CLI 1.0.0"));
-    const bot = lines.find((l) => l.includes("└"));
-    expect(top).toBeDefined();
     expect(mid).toBeDefined();
+    const idx = lines.indexOf(mid as string);
+    const top = lines[idx - 1];
+    const bot = lines[idx + 1];
+    expect(top).toBeDefined();
     expect(bot).toBeDefined();
+    expect(top).toContain("┌");
+    expect(bot).toContain("└");
     expect(stripAnsi(top!).length).toBe(stripAnsi(mid!).length);
     expect(stripAnsi(bot!).length).toBe(stripAnsi(mid!).length);
   });
@@ -93,7 +98,7 @@ describe("CLI help", () => {
     const text = formatVersion(false, "1.0.0");
     expect(text).toContain("PGPJS CLI");
     expect(text).toContain("CLI 1.0.0");
-    expect(text).toContain("READY • LOCAL CRYPTO");
+    expect(text).toContain("READY · LOCAL CRYPTO");
   });
 
   it("styles subcommand help as a terminal screen", () => {
@@ -102,8 +107,10 @@ describe("CLI help", () => {
     expect(key).toBeDefined();
     const text = key!.helpInformation();
     expect(text).toContain("PGPJS CLI");
-    expect(text).toContain("READY • LOCAL CRYPTO");
+    expect(text).toContain("READY · LOCAL CRYPTO");
     expect(text).toContain("generate");
+    expect(text).toContain("$ pgpjs key generate");
+    expect(text).not.toContain("display help for command");
     expect(text).toContain("$ pgpjs key generate");
     expect(text).not.toContain("http://");
     expect(text).not.toContain("https://");

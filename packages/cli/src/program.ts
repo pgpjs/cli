@@ -102,6 +102,8 @@ export function buildProgram(): Command {
     .addOption(new Option("--config-format <fmt>", "Refuse non-JSON configs").choices(["any", "json"]))
     .enablePositionalOptions()
     .showHelpAfterError(false)
+    .helpOption("-h, --help", "Show this screen")
+    .helpCommand(false)
     .configureHelp({
       formatHelp(cmd, helper) {
         const json = process.argv.includes("--json");
