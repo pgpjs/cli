@@ -136,7 +136,6 @@ export function buildProgram(): Command {
     .description("Initialize PGPJS in a project")
     .option("--dry-run", "Show the plan without writing")
     .option("--yes", "Do not confirm")
-    .addHelpText("after", "\nExample:\n  $ pgpjs init\n")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "init", (ctx, mode) => runInit(ctx, opts, mode));
     });
@@ -147,7 +146,6 @@ export function buildProgram(): Command {
     .description("Install Next.js App Router / Route Handler integration")
     .option("--force", "Run even if Next.js is not detected")
     .option("--skip-install", "Scaffold files without installing packages")
-    .addHelpText("after", "\nExample:\n  $ pgpjs install next\n")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "install.next", (ctx, mode) => runInstall(ctx, "next", opts, mode));
     });
@@ -170,7 +168,6 @@ export function buildProgram(): Command {
     .option("--passphrase-file <path>", "Read passphrase from file")
     .option("--passphrase-fd <n>", "Read passphrase from file descriptor")
     .option("--no-passphrase", "Generate an unprotected key (dangerous)")
-    .addHelpText("after", "\nExample:\n  $ pgpjs key generate --name Alice --email alice@example.com --passphrase-file ./pass\n")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "key.generate", (ctx, mode) => runKeyGenerate(ctx, opts, mode));
     });
@@ -238,7 +235,6 @@ export function buildProgram(): Command {
       .option("--output <path>", "Output path")
       .option("--force", "Overwrite existing output")
       .option("--allow-expired", "Allow encrypting to an expired key")
-      .addHelpText("after", "\nExample:\n  $ pgpjs encrypt message.txt --recipient alice@example.com --armor\n")
   ).action(async (file, opts, cmd) => {
     await withCtx(cmd, "encrypt", (ctx, mode) => runEncrypt(ctx, file, opts, mode));
   });
