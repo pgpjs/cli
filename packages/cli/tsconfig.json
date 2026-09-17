@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": true,
+    "paths": {
+      "@pgpjs/core": ["../core/src/index.ts"],
+      "@pgpjs/config": ["../config/src/index.ts"],
+      "@pgpjs/security": ["../security/src/index.ts"],
+      "@pgpjs/mcp": ["../mcp/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

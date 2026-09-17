@@ -1,0 +1,9 @@
+{
+  "name": "pgpjs-example-node",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "openpgp": "6.3.1"
+  }
+}

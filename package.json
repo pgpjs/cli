@@ -1,0 +1,41 @@
+{
+  "name": "pgpjs-cli-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PGPJS CLI monorepo — OpenPGP encryption toolkit for developers, CI, and AI agents",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "clean": "pnpm -r --filter \"./packages/*\" clean",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "pnpm -r --filter \"./packages/*\" typecheck",
+    "lint": "eslint .",
+    "lint:boundaries": "depcruise packages --config dependency-cruiser.cjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm lint:boundaries && pnpm test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@types/node": "^22.13.10",
+    "@types/proper-lockfile": "^4.1.4",
+    "@vitest/coverage-v8": "^3.0.7",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "dependency-cruiser": "^16.10.0",
+    "eslint": "^9.21.0",
+    "fast-check": "^4.1.1",
+    "globals": "^16.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.0",
+    "vitest": "^3.0.7"
+  }
+}

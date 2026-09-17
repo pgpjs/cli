@@ -1,0 +1,182 @@
+import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { buildProgram } from "./program.js";
+import { formatRootHelp, formatVersion, stripAnsi } from "./render/terminal.js";
+import { detectProject } from "./detect/project.js";
+import { planInit, writePlan, nextLibFiles, nodeLibFiles, reactLibFiles } from "./scaffold/files.js";
+
+describe("project detection and init plan", () => {
+  const dirs: string[] = [];
+  afterEach(async () => {
+    for (const d of dirs.splice(0)) {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+
+  it("detects Next.js App Router + TypeScript + pnpm", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-init-"));
+    dirs.push(dir);
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "app", dependencies: { next: "15.0.0" }, packageManager: "pnpm@10.0.0" })
+    );
+    await writeFile(join(dir, "tsconfig.json"), "{}");
+    await mkdir(join(dir, "src/app"), { recursive: true });
+    await writeFile(join(dir, "pnpm-lock.yaml"), "");
+    const info = detectProject(dir);
+    expect(info.framework).toBe("next-app");
+    expect(info.isTypeScript).toBe(true);
+    expect(info.packageManager).toBe("pnpm");
+  });
+
+  it("init plan creates config and gitignore", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-init-"));
+    dirs.push(dir);
+    await writeFile(join(dir, "package.json"), JSON.stringify({ name: "x" }));
+    const plan = planInit(detectProject(dir));
+    const written = writePlan(dir, plan, false);
+    expect(written.some((w) => w.includes("pgpjs.config"))).toBe(true);
+    expect(written.some((w) => w.includes(".gitignore"))).toBe(true);
+  });
+
+  it("install next scaffolds client/server split", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-next-"));
+    dirs.push(dir);
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "app", dependencies: { next: "15.0.0" } })
+    );
+    await mkdir(join(dir, "src/app"), { recursive: true });
+    await writeFile(join(dir, "tsconfig.json"), "{}");
+    const files = nextLibFiles(detectProject(dir));
+    writePlan(dir, files, false);
+    const names = files.map((f) => f.relativePath).join("\n");
+    expect(names).toContain("src/lib/pgpjs/client.ts");
+    expect(names).toContain("src/lib/pgpjs/server.ts");
+    expect(names).toContain("src/lib/pgpjs/keys.ts");
+  });
+
+  it("install react scaffolds a client-only module", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-react-"));
+    dirs.push(dir);
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "app", dependencies: { react: "18.0.0", vite: "6.0.0" } })
+    );
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "tsconfig.json"), "{}");
+    const files = reactLibFiles(detectProject(dir));
+    writePlan(dir, files, false);
+    expect(files.map((f) => f.relativePath).join("\n")).toContain("src/lib/pgpjs/client.ts");
+    expect(files.some((f) => f.relativePath.includes("server.ts"))).toBe(false);
+    const client = files.find((f) => f.relativePath.endsWith("client.ts"));
+    expect(client?.content).toContain("encryptToPublicKey");
+    expect(client?.content).toContain("postToNodeNetwork");
+    expect(client?.content).toContain("decryptViaNode");
+    expect(client?.content).not.toContain("readPrivateKey");
+    expect(client?.content).not.toContain("PGPJS_SERVER_PRIVATE_KEY_FILE");
+  });
+
+  it("install node scaffolds a loopback network server", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-node-"));
+    dirs.push(dir);
+    await writeFile(join(dir, "package.json"), JSON.stringify({ name: "app" }));
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "tsconfig.json"), "{}");
+    const files = nodeLibFiles(detectProject(dir));
+    writePlan(dir, files, false);
+    const names = files.map((f) => f.relativePath).join("\n");
+    expect(names).toContain("src/lib/pgpjs/http.ts");
+    expect(names).toContain("src/lib/pgpjs/server.ts");
+    expect(names).toContain("src/lib/pgpjs/keys.ts");
+    const http = files.find((f) => f.relativePath.endsWith("http.ts"));
+    expect(http?.content).toContain("127.0.0.1");
+    expect(http?.content).toContain("/pgpjs/decrypt");
+    expect(http?.content).toContain("/pgpjs/sign");
+    expect(http?.content).toContain("Access-Control-Allow-Origin");
+    expect(http?.content).toContain("PGPJS_ALLOW_REMOTE");
+    expect(http?.content).toContain("./server.ts");
+    expect(http?.content).toContain("./keys.ts");
+  });
+});
+
+describe("CLI help", () => {
+  it("prints a terminal splash, not a web page", () => {
+    const text = formatRootHelp(false, "1.0.0");
+    expect(text).toContain("PGPJS CLI");
+    expect(text).toContain("OpenPGP encryption toolkit");
+    expect(text).toContain("READY · LOCAL CRYPTO");
+    expect(text).toContain("____");
+    expect(text).toContain("oo");
+    expect(text).toContain("Core");
+    expect(text).toContain("Developer");
+    expect(text).toContain("AI / MCP");
+    expect(text).toContain("token");
+    expect(text).toContain("mcp");
+    expect(text).not.toContain("http://");
+    expect(text).not.toContain("https://");
+    expect(text).not.toContain("<html");
+    expect(text).not.toContain("<!DOCTYPE");
+  });
+
+  it("aligns the CLI version badge", () => {
+    const lines = formatVersion(false, "1.0.0").split("\n");
+    const mid = lines.find((l) => l.includes("CLI 1.0.0"));
+    expect(mid).toBeDefined();
+    const idx = lines.indexOf(mid as string);
+    const top = lines[idx - 1];
+    const bot = lines[idx + 1];
+    expect(top).toBeDefined();
+    expect(bot).toBeDefined();
+    expect(top).toContain("┌");
+    expect(bot).toContain("└");
+    expect(stripAnsi(top!).length).toBe(stripAnsi(mid!).length);
+    expect(stripAnsi(bot!).length).toBe(stripAnsi(mid!).length);
+  });
+
+  it("prints a terminal version screen", () => {
+    const text = formatVersion(false, "1.0.0");
+    expect(text).toContain("PGPJS CLI");
+    expect(text).toContain("CLI 1.0.0");
+    expect(text).toContain("READY · LOCAL CRYPTO");
+  });
+
+  it("styles subcommand help as a terminal screen", () => {
+    const program = buildProgram();
+    const key = program.commands.find((c) => c.name() === "key");
+    expect(key).toBeDefined();
+    const text = key!.helpInformation();
+    expect(text).toContain("PGPJS CLI");
+    expect(text).toContain("READY · LOCAL CRYPTO");
+    expect(text).toContain("generate");
+    expect(text).toContain("$ pgpjs key generate");
+    expect(text).not.toContain("display help for command");
+    expect(text).not.toContain("http://");
+    expect(text).not.toContain("https://");
+  });
+
+  it("exposes token as a top-level command", () => {
+    const program = buildProgram();
+    const names = program.commands.map((c) => c.name());
+    expect(names).toContain("token");
+    expect(names).toContain("mcp");
+    const token = program.commands.find((c) => c.name() === "token");
+    expect(token?.commands.map((c) => c.name()).sort()).toEqual(["create", "list", "revoke", "rotate"]);
+    const mcp = program.commands.find((c) => c.name() === "mcp");
+    expect(mcp?.commands.map((c) => c.name())).toEqual(expect.arrayContaining(["start", "status", "config"]));
+    expect(mcp?.commands.map((c) => c.name())).not.toContain("token");
+  });
+
+  it("accepts global flags after a subcommand", () => {
+    const program = buildProgram();
+    const list = program.commands.find((c) => c.name() === "token")?.commands.find((c) => c.name() === "list");
+    const flags = (list?.options ?? []).map((o) => o.long);
+    expect(flags).toContain("--json");
+    expect(flags).toContain("--no-input");
+    expect(flags).toContain("--no-color");
+    const help = list!.helpInformation();
+    expect(help).not.toContain("--json");
+  });
+});

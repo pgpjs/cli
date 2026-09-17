@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pgpjs.dev/schemas/v1/key-list.json",
+  "title": "key.list data",
+  "type": "object",
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "fingerprint"],
+        "properties": {
+          "id": { "type": "string" },
+          "fingerprint": { "type": "string" },
+          "email": { "type": ["string", "null"] },
+          "algorithm": { "type": "string" },
+          "expiresAt": { "type": ["string", "null"] },
+          "hasPrivate": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
