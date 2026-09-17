@@ -97,6 +97,8 @@ describe("project detection and init plan", () => {
     expect(http?.content).toContain("/pgpjs/sign");
     expect(http?.content).toContain("Access-Control-Allow-Origin");
     expect(http?.content).toContain("PGPJS_ALLOW_REMOTE");
+    expect(http?.content).toContain("./server.ts");
+    expect(http?.content).toContain("./keys.ts");
   });
 });
 
@@ -165,5 +167,16 @@ describe("CLI help", () => {
     const mcp = program.commands.find((c) => c.name() === "mcp");
     expect(mcp?.commands.map((c) => c.name())).toEqual(expect.arrayContaining(["start", "status", "config"]));
     expect(mcp?.commands.map((c) => c.name())).not.toContain("token");
+  });
+
+  it("accepts global flags after a subcommand", () => {
+    const program = buildProgram();
+    const list = program.commands.find((c) => c.name() === "token")?.commands.find((c) => c.name() === "list");
+    const flags = (list?.options ?? []).map((o) => o.long);
+    expect(flags).toContain("--json");
+    expect(flags).toContain("--no-input");
+    expect(flags).toContain("--no-color");
+    const help = list!.helpInformation();
+    expect(help).not.toContain("--json");
   });
 });

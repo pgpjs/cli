@@ -238,7 +238,7 @@ function scanClientImports(cwd: string, hasSrc: boolean, framework: string): str
       const markedClient = text.includes('"use client"') || text.includes("'use client'");
       const spaClient = framework === "react" || framework === "vite";
       if (!markedClient && !spaClient) continue;
-      if (/from\s+["'][^"']*lib\/pgpjs\/(server|keys|encryption|http)["']/.test(text)) {
+      if (/from\s+["'][^"']*lib\/pgpjs\/(server|keys|encryption|http)(?:\.(?:ts|js))?["']/.test(text)) {
         return full;
       }
     }

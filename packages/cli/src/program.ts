@@ -54,8 +54,40 @@ function pkgVersion(): string {
 }
 
 function globalFrom(cmd: Command): GlobalFlags {
-  const opts = cmd.optsWithGlobals() as GlobalFlags;
-  return opts;
+  const opts = cmd.optsWithGlobals() as GlobalFlags & { input?: boolean; color?: boolean };
+  const flags: GlobalFlags = {
+    json: Boolean(opts.json),
+    quiet: Boolean(opts.quiet),
+    verbose: Boolean(opts.verbose),
+    noColor: opts.color === false || Boolean(opts.noColor),
+    noInput: opts.input === false || Boolean(opts.noInput)
+  };
+  if (typeof opts.config === "string") flags.config = opts.config;
+  if (typeof opts.home === "string") flags.home = opts.home;
+  if (opts.configFormat === "any" || opts.configFormat === "json") flags.configFormat = opts.configFormat;
+  return flags;
+}
+
+function hiddenGlobals(): Option[] {
+  return [
+    new Option("--json", "Machine-readable JSON on stdout").hideHelp(),
+    new Option("--quiet", "Minimal output").hideHelp(),
+    new Option("--verbose", "Verbose output").hideHelp(),
+    new Option("--no-color", "Disable colour").hideHelp(),
+    new Option("--no-input", "Never prompt").hideHelp(),
+    new Option("--config <path>", "Path to a config file").hideHelp(),
+    new Option("--home <path>", "Override PGPJS_HOME").hideHelp(),
+    new Option("--config-format <fmt>", "Refuse non-JSON configs").choices(["any", "json"]).hideHelp()
+  ];
+}
+
+function inheritGlobals(cmd: Command): void {
+  for (const sub of cmd.commands) {
+    for (const opt of hiddenGlobals()) {
+      sub.addOption(opt);
+    }
+    inheritGlobals(sub);
+  }
 }
 
 function modeFor(cmd: Command, command: string): OutputMode {
@@ -383,6 +415,8 @@ export function buildProgram(): Command {
   cfg.action(async (_opts, cmd) => {
     await withCtx(cmd, "config.show", (ctx, mode) => runConfigShow(ctx, mode));
   });
+
+  inheritGlobals(program);
 
   program.exitOverride((err) => {
     if (err.code === "commander.helpDisplayed" || err.code === "commander.version") {

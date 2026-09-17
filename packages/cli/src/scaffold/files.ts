@@ -310,7 +310,7 @@ export async function loadPrivateKey(passphrase${ts ? "?: string" : ""})${ts ? "
     relativePath: `${base}/server.${ext}`,
     action: existsSync(join(info.cwd, `${base}/server.${ext}`)) ? "skip" : "create",
     content: `import * as openpgp from "openpgp";
-import { loadPrivateKey, loadPublicKey } from "./keys";
+import { loadPrivateKey, loadPublicKey } from "./keys.${ext}";
 
 if (typeof window !== "undefined") {
   throw new Error("server.ts is Node-only. Private keys must stay on the network server.");
@@ -362,8 +362,8 @@ export { loadPrivateKey, loadPublicKey };
  */
 import { createServer${ts ? ", type IncomingMessage, type ServerResponse" : ""} } from "node:http";
 import { pathToFileURL } from "node:url";
-import { decryptMessage, encryptMessage, signMessage } from "./server";
-import { loadPublicKey } from "./keys";
+import { decryptMessage, encryptMessage, signMessage } from "./server.${ext}";
+import { loadPublicKey } from "./keys.${ext}";
 
 const HOST = process.env.PGPJS_HTTP_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PGPJS_HTTP_PORT ?? "8788");
@@ -454,8 +454,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   files.push({
     relativePath: `${base}/index.${ext}`,
     action: existsSync(join(info.cwd, `${base}/index.${ext}`)) ? "skip" : "create",
-    content: `export { encryptMessage, decryptMessage, signMessage } from "./server";
-export { startPgpjsNetworkServer } from "./http";
+    content: `export { encryptMessage, decryptMessage, signMessage } from "./server.${ext}";
+export { startPgpjsNetworkServer } from "./http.${ext}";
 `
   });
 

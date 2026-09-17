@@ -2,7 +2,7 @@
 
 `pgpjs` is a **terminal** program. `pgpjs` and `pgpjs --help` print a dark-terminal splash (key icon, grouped Core / Developer / AI·MCP commands). Subcommands print the same chrome — not a web page and not man-page HTML.
 
-All commands accept the global flags `--json`, `--quiet`, `--verbose`, `--no-color`, `--no-input`, `--config <path>`, `--home <path>`, `--config-format json|any`.
+All commands accept the global flags `--json`, `--quiet`, `--verbose`, `--no-color`, `--no-input`, `--config <path>`, `--home <path>`, `--config-format json|any` (before or after the subcommand, e.g. `pgpjs key list --json`).
 
 `--json` writes a single JSON document to stdout and nothing else. Diagnostics go to stderr. Non-interactive mode is also entered when `--json`, `--no-input`, `CI=true`, `PGPJS_NON_INTERACTIVE=1`, or stdin is not a TTY.
 
