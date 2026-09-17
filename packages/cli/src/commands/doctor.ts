@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { EXIT_CODES } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
 import { detectProject } from "../detect/project.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { heading, muted, statusLine } from "../render/terminal.js";
 
 export interface DoctorCheck {
   id: string;
@@ -167,13 +168,20 @@ export async function runDoctor(ctx: CliContext, mode: OutputMode): Promise<numb
 
   const failed = checks.some((c) => c.status === "fail");
   emitSuccess(mode, { checks, ok: !failed }, () => {
-    console.log("PGPJS doctor\n");
+    const color = mode.color;
+    const lines = [heading(color, "PGPJS doctor"), ""];
     for (const c of checks) {
-      const mark = c.status === "pass" ? green(mode, "✓") : c.status === "warn" ? yellow(mode, "⚠") : "✗";
-      console.log(`  ${mark} ${c.message}`);
-      if (c.fix && c.status !== "pass") console.log(`      → ${c.fix}`);
+      const kind = c.status === "pass" ? "ok" : c.status === "warn" ? "warn" : "fail";
+      lines.push(statusLine(color, kind, c.message));
+      if (c.fix && c.status !== "pass") lines.push(muted(color, `→ ${c.fix}`));
     }
-    console.log(failed ? "\nDoctor found failures." : "\nDoctor: no failures.");
+    lines.push("");
+    lines.push(
+      failed
+        ? statusLine(color, "fail", "Doctor found failures.")
+        : statusLine(color, "ok", "Doctor: no failures.")
+    );
+    return lines;
   });
   return failed ? EXIT_CODES.GENERIC_ERROR : EXIT_CODES.OK;
 }

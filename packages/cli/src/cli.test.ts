@@ -2,9 +2,10 @@ import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { buildProgram } from "./program.js";
+import { formatRootHelp, formatVersion, stripAnsi } from "./render/terminal.js";
 import { detectProject } from "./detect/project.js";
 import { planInit, writePlan, nextLibFiles } from "./scaffold/files.js";
-import { buildProgram } from "./program.js";
 
 describe("project detection and init plan", () => {
   const dirs: string[] = [];
@@ -59,11 +60,52 @@ describe("project detection and init plan", () => {
 });
 
 describe("CLI help", () => {
-  it("prints professional help", async () => {
-    const program = buildProgram();
-    const text = program.helpInformation();
+  it("prints a terminal splash, not a web page", () => {
+    const text = formatRootHelp(false, "1.0.0");
+    expect(text).toContain("PGPJS CLI");
+    expect(text).toContain("OpenPGP encryption toolkit");
+    expect(text).toContain("$ pgpjs key generate");
+    expect(text).toContain("$ pgpjs encrypt message.txt");
+    expect(text).toContain("READY • LOCAL CRYPTO");
     expect(text).toContain("init");
     expect(text).toContain("encrypt");
     expect(text).toContain("mcp");
+    expect(text).toContain("pgpjs");
+    expect(text).not.toContain("http://");
+    expect(text).not.toContain("https://");
+    expect(text).not.toContain("<html");
+    expect(text).not.toContain("<!DOCTYPE");
+  });
+
+  it("aligns the CLI version badge", () => {
+    const lines = formatVersion(false, "1.0.0").split("\n");
+    const top = lines.find((l) => l.includes("┌"));
+    const mid = lines.find((l) => l.includes("CLI 1.0.0"));
+    const bot = lines.find((l) => l.includes("└"));
+    expect(top).toBeDefined();
+    expect(mid).toBeDefined();
+    expect(bot).toBeDefined();
+    expect(stripAnsi(top!).length).toBe(stripAnsi(mid!).length);
+    expect(stripAnsi(bot!).length).toBe(stripAnsi(mid!).length);
+  });
+
+  it("prints a terminal version screen", () => {
+    const text = formatVersion(false, "1.0.0");
+    expect(text).toContain("PGPJS CLI");
+    expect(text).toContain("CLI 1.0.0");
+    expect(text).toContain("READY • LOCAL CRYPTO");
+  });
+
+  it("styles subcommand help as a terminal screen", () => {
+    const program = buildProgram();
+    const key = program.commands.find((c) => c.name() === "key");
+    expect(key).toBeDefined();
+    const text = key!.helpInformation();
+    expect(text).toContain("PGPJS CLI");
+    expect(text).toContain("READY • LOCAL CRYPTO");
+    expect(text).toContain("generate");
+    expect(text).toContain("$ pgpjs key generate");
+    expect(text).not.toContain("http://");
+    expect(text).not.toContain("https://");
   });
 });

@@ -8,7 +8,8 @@ import {
   applySecureMode
 } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { heading, kvLine, muted, statusLine } from "../render/terminal.js";
 import { promptMasked, promptSelect, promptText, missingFlag } from "../prompts.js";
 import { readPassphrase } from "../context.js";
 import { promptConfirm } from "../prompts.js";
@@ -47,7 +48,7 @@ export async function runKeyGenerate(
   if (opts.noPassphrase) {
     if (!mode.json) {
       process.stderr.write(
-        `${yellow(mode, "⚠")} Generating a private key WITHOUT a passphrase. This is strongly discouraged.\n`
+        `${statusLine(mode.color, "warn", "Generating a private key WITHOUT a passphrase. This is strongly discouraged.")}\n`
       );
     }
   } else {
@@ -95,15 +96,20 @@ export async function runKeyGenerate(
       revocation: saved.revocationPath
     },
     () => {
-      console.log(`${green(mode, "✓")} Key generated\n`);
-      console.log(`  Fingerprint  ${formatFingerprint(generated.fingerprint)}`);
-      console.log(`  User ID      ${name} <${email}>`);
-      console.log(`  Algorithm    ${generated.algorithmLabel}`);
-      console.log(`  Expires      ${generated.expiresAt ?? "never"}`);
-      console.log("");
-      console.log(`  Public key   ${saved.publicPath}`);
-      console.log("  Private key  stored in keystore, passphrase-protected");
-      console.log(`  Revocation   ${saved.revocationPath}  ← back this up off-machine`);
+      const color = mode.color;
+      return [
+        statusLine(color, "ok", "Key generated"),
+        "",
+        kvLine(color, "Fingerprint", formatFingerprint(generated.fingerprint)),
+        kvLine(color, "User ID", `${name} <${email}>`),
+        kvLine(color, "Algorithm", generated.algorithmLabel),
+        kvLine(color, "Expires", generated.expiresAt ?? "never"),
+        "",
+        kvLine(color, "Public key", saved.publicPath),
+        kvLine(color, "Private key", "stored in keystore, passphrase-protected"),
+        kvLine(color, "Revocation", saved.revocationPath),
+        muted(color, "Back up the revocation certificate off-machine.")
+      ];
     }
   );
 }
@@ -123,13 +129,21 @@ export async function runKeyList(ctx: CliContext, mode: OutputMode): Promise<voi
       }))
     },
     () => {
+      const color = mode.color;
       if (keys.length === 0) {
-        console.log("No keys in the keystore. Run `pgpjs key generate`.");
-        return;
+        return [
+          heading(color, "Keys"),
+          muted(color, "No keys in the keystore."),
+          muted(color, "Run `pgpjs key generate`.")
+        ];
       }
-      for (const k of keys) {
-        console.log(`${formatFingerprint(k.fingerprint)}  ${k.emails[0] ?? k.userIds[0] ?? ""}  ${k.algorithm}`);
-      }
+      return [
+        heading(color, `Keys (${keys.length})`),
+        "",
+        ...keys.map((k) =>
+          kvLine(color, formatFingerprint(k.fingerprint), `${k.emails[0] ?? k.userIds[0] ?? ""}  ${k.algorithm}`, 20)
+        )
+      ];
     }
   );
 }
@@ -137,17 +151,23 @@ export async function runKeyList(ctx: CliContext, mode: OutputMode): Promise<voi
 export async function runKeyShow(ctx: CliContext, id: string, mode: OutputMode): Promise<void> {
   const { meta } = await ctx.keystore.readPublic(id);
   emitSuccess(mode, { key: meta }, () => {
-    console.log(`Fingerprint  ${formatFingerprint(meta.fingerprint)}`);
-    console.log(`Key ID       ${meta.keyId}`);
-    console.log(`User IDs     ${meta.userIds.join(", ")}`);
-    console.log(`Algorithm    ${meta.algorithm}`);
-    console.log(`Created      ${meta.createdAt}`);
-    console.log(`Expires      ${meta.expiresAt ?? "never"}`);
-    console.log(`Revoked      ${meta.revoked ? "yes" : "no"}`);
-    console.log(`Private      ${meta.isPrivate || "see keystore"}`);
+    const color = mode.color;
+    const lines = [
+      heading(color, "Key"),
+      "",
+      kvLine(color, "Fingerprint", formatFingerprint(meta.fingerprint)),
+      kvLine(color, "Key ID", meta.keyId),
+      kvLine(color, "User IDs", meta.userIds.join(", ")),
+      kvLine(color, "Algorithm", meta.algorithm),
+      kvLine(color, "Created", meta.createdAt),
+      kvLine(color, "Expires", meta.expiresAt ?? "never"),
+      kvLine(color, "Revoked", meta.revoked ? "yes" : "no"),
+      kvLine(color, "Private", String(meta.isPrivate || "see keystore"))
+    ];
     for (const s of meta.subkeys) {
-      console.log(`Subkey       ${s.keyId} (${s.algorithm})`);
+      lines.push(kvLine(color, "Subkey", `${s.keyId} (${s.algorithm})`));
     }
+    return lines;
   });
 }
 
@@ -184,10 +204,10 @@ export async function runKeyExport(
     const out = opts.output ?? join(ctx.resolved.projectRoot, `${id}.sec.asc`);
     await writeFile(out, armored, { mode: 0o600 });
     await applySecureMode(out, 0o600);
-    emitSuccess(mode, { output: out, private: true }, () => {
-      console.log(`${green(mode, "✓")} Private key written to ${out} (mode 0600)`);
-      console.log(`${yellow(mode, "⚠")} This export is recorded as a sensitive operation. Rotate if it may have leaked.`);
-    });
+    emitSuccess(mode, { output: out, private: true }, () => [
+      statusLine(mode.color, "ok", `Private key written to ${out} (mode 0600)`),
+      statusLine(mode.color, "warn", "This export is recorded as a sensitive operation. Rotate if it may have leaked.")
+    ]);
     return;
   }
 
@@ -201,9 +221,9 @@ export async function runKeyExport(
     return;
   }
   await writeFile(opts.output, armored, { mode: 0o644 });
-  emitSuccess(mode, { output: opts.output, private: false }, () => {
-    console.log(`${green(mode, "✓")} Public key written to ${opts.output}`);
-  });
+  emitSuccess(mode, { output: opts.output, private: false }, () => [
+    statusLine(mode.color, "ok", `Public key written to ${opts.output}`)
+  ]);
 }
 
 export async function runKeyImport(ctx: CliContext, file: string, mode: OutputMode): Promise<void> {
@@ -214,10 +234,11 @@ export async function runKeyImport(ctx: CliContext, file: string, mode: OutputMo
     mode,
     { fingerprint: result.fingerprint, warnings: result.warnings },
     () => {
-      console.log(`${green(mode, "✓")} Imported ${formatFingerprint(result.fingerprint)}`);
-      for (const w of result.warnings) {
-        console.log(`${yellow(mode, "⚠")} ${w}`);
-      }
+      const color = mode.color;
+      return [
+        statusLine(color, "ok", `Imported ${formatFingerprint(result.fingerprint)}`),
+        ...result.warnings.map((w) => statusLine(color, "warn", w))
+      ];
     }
   );
 }
@@ -235,14 +256,14 @@ export async function runKeyDelete(
     throw new PgpjsError("NON_INTERACTIVE", "Pass --yes to delete a key in non-interactive mode.");
   }
   const result = await ctx.keystore.deleteKey(id);
-  emitSuccess(mode, { fingerprint: result.fingerprint }, () => {
-    console.log(`${green(mode, "✓")} Deleted ${formatFingerprint(result.fingerprint)}`);
-  });
+  emitSuccess(mode, { fingerprint: result.fingerprint }, () => [
+    statusLine(mode.color, "ok", `Deleted ${formatFingerprint(result.fingerprint)}`)
+  ]);
 }
 
 export async function runKeyReindex(ctx: CliContext, mode: OutputMode): Promise<void> {
   const keys = await ctx.keystore.reindex();
-  emitSuccess(mode, { count: keys.length }, () => {
-    console.log(`${green(mode, "✓")} Rebuilt keystore index (${keys.length} key(s))`);
-  });
+  emitSuccess(mode, { count: keys.length }, () => [
+    statusLine(mode.color, "ok", `Rebuilt keystore index (${keys.length} key(s))`)
+  ]);
 }

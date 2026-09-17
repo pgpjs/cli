@@ -1,7 +1,8 @@
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { decryptData, PgpjsError, sanitizeEmbeddedFilename } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { kvLine, statusLine } from "../render/terminal.js";
 import { assertOutputPath, looksArmored, readStdinBytes, resolveInput } from "../io.js";
 import { readPassphrase } from "../context.js";
 import { promptMasked } from "../prompts.js";
@@ -65,7 +66,9 @@ export async function runDecrypt(
   });
 
   if (opts.allowUnauthenticated && !mode.json) {
-    process.stderr.write(`${yellow(mode, "⚠")} Decrypting a message without integrity protection.\n`);
+    process.stderr.write(
+      `${statusLine(mode.color, "warn", "Decrypting a message without integrity protection.")}\n`
+    );
   }
 
   const embedded = sanitizeEmbeddedFilename(decrypted.meta.filename);
@@ -92,10 +95,11 @@ export async function runDecrypt(
   }
 
   emitSuccess(mode, jsonData, () => {
-    console.log(`${green(mode, "✓")} Decrypted to ${output}`);
+    const lines = [statusLine(mode.color, "ok", `Decrypted to ${output}`)];
     if (decrypted.meta.wasSigned) {
-      console.log(`  signatures  ${decrypted.meta.signatures.length}`);
+      lines.push(kvLine(mode.color, "signatures", String(decrypted.meta.signatures.length)));
     }
+    return lines;
   });
 }
 

@@ -1,5 +1,6 @@
 import type { CliContext } from "../context.js";
 import { emitSuccess, type OutputMode } from "../render/output.js";
+import { heading, kvLine } from "../render/terminal.js";
 
 export async function runConfigShow(ctx: CliContext, mode: OutputMode): Promise<void> {
   emitSuccess(
@@ -13,15 +14,21 @@ export async function runConfigShow(ctx: CliContext, mode: OutputMode): Promise<
       keystoreRoot: ctx.resolved.keystoreRoot
     },
     () => {
-      console.log(`home          ${ctx.resolved.home}`);
-      console.log(`projectRoot   ${ctx.resolved.projectRoot}`);
-      console.log(`keystoreRoot  ${ctx.resolved.keystoreRoot}`);
-      console.log(`project file  ${ctx.resolved.files.project ?? "(none)"}`);
-      console.log(`global file   ${ctx.resolved.files.global ?? "(none)"}`);
-      console.log("");
+      const color = mode.color;
+      const lines = [
+        heading(color, "Effective config"),
+        "",
+        kvLine(color, "home", ctx.resolved.home),
+        kvLine(color, "projectRoot", ctx.resolved.projectRoot),
+        kvLine(color, "keystoreRoot", ctx.resolved.keystoreRoot),
+        kvLine(color, "project file", ctx.resolved.files.project ?? "(none)"),
+        kvLine(color, "global file", ctx.resolved.files.global ?? "(none)"),
+        ""
+      ];
       for (const [k, origin] of Object.entries(ctx.resolved.origins)) {
-        console.log(`  ${k.padEnd(40)} ${origin}`);
+        lines.push(kvLine(color, k, origin, 40));
       }
+      return lines;
     }
   );
 }

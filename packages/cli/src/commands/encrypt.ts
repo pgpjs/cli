@@ -1,7 +1,8 @@
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { encryptData, PgpjsError } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
-import { emitSuccess, green, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { kvLine, statusLine } from "../render/terminal.js";
 import { assertOutputPath, derivedOutputName, readStdinBytes, resolveInput } from "../io.js";
 import { readPassphrase } from "../context.js";
 import { promptMasked } from "../prompts.js";
@@ -105,11 +106,9 @@ export async function runEncrypt(
       recipients: fingerprints,
       armored: armor
     },
-    () => {
-      console.log(`${green(mode, "✓")} Encrypted ${output}`);
-      for (const fp of fingerprints) {
-        console.log(`  recipient  ${fp}`);
-      }
-    }
+    () => [
+      statusLine(mode.color, "ok", `Encrypted ${output}`),
+      ...fingerprints.map((fp) => kvLine(mode.color, "recipient", fp))
+    ]
   );
 }

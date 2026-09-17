@@ -1,7 +1,8 @@
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { PgpjsError, signData, type SignMode } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
-import { emitSuccess, green, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { kvLine, statusLine } from "../render/terminal.js";
 import { assertOutputPath, derivedOutputName, readStdinBytes, resolveInput } from "../io.js";
 import { readPassphrase } from "../context.js";
 import { promptMasked } from "../prompts.js";
@@ -75,9 +76,9 @@ export async function runSign(
   emitSuccess(
     mode,
     { operation: "sign", output, mode: modeSign, fingerprint: signed.fingerprint },
-    () => {
-      console.log(`${green(mode, "✓")} Signed (${modeSign}) → ${output}`);
-      console.log(`  fingerprint  ${signed.fingerprint}`);
-    }
+    () => [
+      statusLine(mode.color, "ok", `Signed (${modeSign}) → ${output}`),
+      kvLine(mode.color, "fingerprint", signed.fingerprint)
+    ]
   );
 }

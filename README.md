@@ -1,12 +1,34 @@
 # PGPJS CLI
 
-**OpenPGP encryption toolkit** for modern JavaScript and TypeScript developers.
+A **terminal** OpenPGP encryption toolkit for JavaScript and TypeScript developers. There is no web UI — `pgpjs` is a command-line program.
+
+```bash
+npm install -g pgpjs-cli
+pgpjs              # splash screen
+pgpjs --help       # same terminal UI
+```
+
+```
+pgpjs                                              PGPJS CLI
+────────────────────────────────────────────────────────────────
+
+      ╭───╮
+     ╱     ╲━━━━┓     PGPJS CLI
+     ╲     ╱    ┃     OpenPGP encryption toolkit
+      ╰───╯     ┃
+       ▪ ▪            ┌──────────────┐
+                      │ CLI 1.0.0    │
+                      └──────────────┘
+
+    $ pgpjs key generate
+    $ pgpjs encrypt message.txt
+
+PGP / OpenPGP                                 READY • LOCAL CRYPTO
+```
 
 Install once, then initialize a Next.js or Node.js project, manage OpenPGP keys, encrypt and sign data, and expose a least-privilege MCP server to AI agents.
 
 ```bash
-npm install -g pgpjs-cli
-
 cd my-next-app
 pgpjs init
 pgpjs install next

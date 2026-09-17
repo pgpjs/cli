@@ -1,7 +1,8 @@
 import { access, readFile } from "node:fs/promises";
 import { EXIT_CODES, PgpjsError, verifyData } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { kvLine, statusLine } from "../render/terminal.js";
 import { looksArmored, resolveInput } from "../io.js";
 
 export async function runVerify(
@@ -52,16 +53,19 @@ export async function runVerify(
     mode,
     { operation: "verify", status: result.status, signatures: result.signatures, signer: result.signerFingerprint },
     () => {
+      const color = mode.color;
       if (result.status === "valid") {
-        console.log(`${green(mode, "✓")} Signature valid`);
-        if (result.signerFingerprint) console.log(`  signer  ${result.signerFingerprint}`);
-      } else if (result.status === "untrusted") {
-        console.log(`${yellow(mode, "⚠")} Signature is valid but the signer is unknown or untrusted`);
-      } else if (result.status === "missing") {
-        console.log("✗ No signature found");
-      } else {
-        console.log("✗ Signature invalid");
+        const lines = [statusLine(color, "ok", "Signature valid")];
+        if (result.signerFingerprint) lines.push(kvLine(color, "signer", result.signerFingerprint));
+        return lines;
       }
+      if (result.status === "untrusted") {
+        return [statusLine(color, "warn", "Signature is valid but the signer is unknown or untrusted")];
+      }
+      if (result.status === "missing") {
+        return [statusLine(color, "fail", "No signature found")];
+      }
+      return [statusLine(color, "fail", "Signature invalid")];
     }
   );
 

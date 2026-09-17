@@ -1,6 +1,15 @@
 import { Command, Option } from "commander";
 import { createContext, type GlobalFlags } from "./context.js";
 import { emitError, type OutputMode } from "./render/output.js";
+import {
+  formatCommandHelp,
+  formatJsonCommandHelp,
+  formatJsonHelp,
+  formatJsonVersion,
+  printRootHelp,
+  printVersion,
+  wantsColor
+} from "./render/terminal.js";
 import { EXIT_CODES, PgpjsError } from "@pgpjs/core";
 import { runInit } from "./commands/init.js";
 import { runInstall } from "./commands/install.js";
@@ -51,7 +60,8 @@ function globalFrom(cmd: Command): GlobalFlags {
 function modeFor(cmd: Command, command: string): OutputMode {
   const g = globalFrom(cmd);
   const json = Boolean(g.json);
-  const color = !g.noColor && !json && Boolean(process.stdout.isTTY) && !process.env["NO_COLOR"] && process.env["TERM"] !== "dumb";
+  const color =
+    !g.noColor && !json && Boolean(process.stdout.isTTY) && !process.env["NO_COLOR"] && process.env["TERM"] !== "dumb";
   return {
     json,
     quiet: Boolean(g.quiet),
@@ -61,7 +71,11 @@ function modeFor(cmd: Command, command: string): OutputMode {
   };
 }
 
-async function withCtx(cmd: Command, command: string, fn: (ctx: Awaited<ReturnType<typeof createContext>>, mode: OutputMode) => Promise<number | void>): Promise<void> {
+async function withCtx(
+  cmd: Command,
+  command: string,
+  fn: (ctx: Awaited<ReturnType<typeof createContext>>, mode: OutputMode) => Promise<number | void>
+): Promise<void> {
   const mode = modeFor(cmd, command);
   try {
     const ctx = await createContext(globalFrom(cmd));
@@ -76,7 +90,7 @@ export function buildProgram(): Command {
   const program = new Command();
   program
     .name("pgpjs")
-    .description("PGPJS CLI\nOpenPGP encryption toolkit")
+    .description("OpenPGP encryption toolkit")
     .version(pkgVersion(), "-V, --version", "Show version")
     .option("--json", "Machine-readable JSON on stdout")
     .option("--quiet", "Minimal output")
@@ -86,42 +100,43 @@ export function buildProgram(): Command {
     .option("--config <path>", "Path to a config file")
     .option("--home <path>", "Override PGPJS_HOME")
     .addOption(new Option("--config-format <fmt>", "Refuse non-JSON configs").choices(["any", "json"]))
-    .showHelpAfterError()
+    .enablePositionalOptions()
+    .showHelpAfterError(false)
     .configureHelp({
-      sortSubcommands: true
+      formatHelp(cmd, helper) {
+        const json = process.argv.includes("--json");
+        const color = wantsColor() && !process.argv.includes("--no-color") && !json;
+        if (json) {
+          return cmd.parent ? formatJsonCommandHelp(cmd, helper, pkgVersion()) : formatJsonHelp(pkgVersion());
+        }
+        if (!cmd.parent) {
+          return "";
+        }
+        return formatCommandHelp(cmd, helper, color);
+      }
+    })
+    .configureOutput({
+      writeOut: (str) => {
+        if (str.trim().length === 0) return;
+        process.stdout.write(str.endsWith("\n") ? str : `${str}\n`);
+      },
+      writeErr: (str) => process.stderr.write(str)
     });
 
-  program.configureOutput({
-    writeOut: (str) => process.stdout.write(str),
-    writeErr: (str) => process.stderr.write(str)
+  program.action((opts: GlobalFlags) => {
+    if (opts.json) {
+      process.stdout.write(`${formatJsonHelp(pkgVersion())}\n`);
+      return;
+    }
+    printRootHelp(wantsColor() && !opts.noColor, pkgVersion());
   });
-
-  program.addHelpText(
-    "beforeAll",
-    `PGPJS CLI
-OpenPGP encryption toolkit
-
-`
-  );
-  program.addHelpText(
-    "afterAll",
-    `
-Examples:
-  pgpjs init
-  pgpjs install next
-  pgpjs key generate --name Alice --email alice@example.com --passphrase-file ./pass
-  pgpjs encrypt message.txt --recipient alice@example.com --json
-
-Docs: https://github.com/pgpjs/cli
-`
-  );
 
   program
     .command("init")
     .description("Initialize PGPJS in a project")
     .option("--dry-run", "Show the plan without writing")
     .option("--yes", "Do not confirm")
-    .addHelpText("after", "\nExample:\n  pgpjs init\n")
+    .addHelpText("after", "\nExample:\n  $ pgpjs init\n")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "init", (ctx, mode) => runInit(ctx, opts, mode));
     });
@@ -132,7 +147,7 @@ Docs: https://github.com/pgpjs/cli
     .description("Install Next.js App Router / Route Handler integration")
     .option("--force", "Run even if Next.js is not detected")
     .option("--skip-install", "Scaffold files without installing packages")
-    .addHelpText("after", "\nExample:\n  pgpjs install next\n")
+    .addHelpText("after", "\nExample:\n  $ pgpjs install next\n")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "install.next", (ctx, mode) => runInstall(ctx, "next", opts, mode));
     });
@@ -155,7 +170,7 @@ Docs: https://github.com/pgpjs/cli
     .option("--passphrase-file <path>", "Read passphrase from file")
     .option("--passphrase-fd <n>", "Read passphrase from file descriptor")
     .option("--no-passphrase", "Generate an unprotected key (dangerous)")
-    .addHelpText("after", "\nExample:\n  pgpjs key generate --name Alice --email alice@example.com --passphrase-file ./pass\n")
+    .addHelpText("after", "\nExample:\n  $ pgpjs key generate --name Alice --email alice@example.com --passphrase-file ./pass\n")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "key.generate", (ctx, mode) => runKeyGenerate(ctx, opts, mode));
     });
@@ -223,7 +238,7 @@ Docs: https://github.com/pgpjs/cli
       .option("--output <path>", "Output path")
       .option("--force", "Overwrite existing output")
       .option("--allow-expired", "Allow encrypting to an expired key")
-      .addHelpText("after", "\nExample:\n  pgpjs encrypt message.txt --recipient alice@example.com --armor\n")
+      .addHelpText("after", "\nExample:\n  $ pgpjs encrypt message.txt --recipient alice@example.com --armor\n")
   ).action(async (file, opts, cmd) => {
     await withCtx(cmd, "encrypt", (ctx, mode) => runEncrypt(ctx, file, opts, mode));
   });
@@ -348,6 +363,9 @@ Docs: https://github.com/pgpjs/cli
     if (err.code === "commander.helpDisplayed" || err.code === "commander.version") {
       throw err;
     }
+    if (err.code === "commander.help") {
+      throw err;
+    }
     throw new PgpjsError("USAGE_ERROR", err.message);
   });
 
@@ -358,14 +376,55 @@ function collect(value: string, prev: string[]): string[] {
   return prev.concat([value]);
 }
 
+function flagsOnly(rest: string[]): boolean {
+  return rest.every((a) => a.startsWith("-"));
+}
+
+function wantsRootHelp(rest: string[]): boolean {
+  if (rest.length === 0) return true;
+  if (rest[0] === "--help" || rest[0] === "-h") return true;
+  if (rest[0] === "help") {
+    return rest.slice(1).every((a) => a.startsWith("-"));
+  }
+  return flagsOnly(rest) && (rest.includes("--help") || rest.includes("-h"));
+}
+
+function wantsVersion(rest: string[]): boolean {
+  return flagsOnly(rest) && (rest.includes("--version") || rest.includes("-V"));
+}
+
 export async function run(argv = process.argv): Promise<void> {
+  const rest = argv.slice(2);
+  const json = rest.includes("--json");
+  const color = wantsColor() && !rest.includes("--no-color") && !json;
+
+  if (wantsRootHelp(rest)) {
+    if (json) {
+      process.stdout.write(`${formatJsonHelp(pkgVersion())}\n`);
+    } else {
+      printRootHelp(color, pkgVersion());
+    }
+    process.exitCode = 0;
+    return;
+  }
+
+  if (wantsVersion(rest)) {
+    if (json) {
+      process.stdout.write(`${formatJsonVersion(pkgVersion())}\n`);
+    } else {
+      printVersion(color, pkgVersion());
+    }
+    process.exitCode = 0;
+    return;
+  }
+
   const program = buildProgram();
   try {
     await program.parseAsync(argv);
   } catch (err) {
     if (err && typeof err === "object" && "code" in err) {
       const code = String((err as { code: string }).code);
-      if (code === "commander.helpDisplayed" || code === "commander.version") {
+      if (code === "commander.helpDisplayed" || code === "commander.version" || code === "commander.help") {
         process.exitCode = 0;
         return;
       }
@@ -374,9 +433,8 @@ export async function run(argv = process.argv): Promise<void> {
         return;
       }
     }
-    const json = argv.includes("--json");
     process.exitCode = emitError(
-      { json, quiet: false, verbose: argv.includes("--verbose"), color: false, command: "pgpjs" },
+      { json, quiet: false, verbose: rest.includes("--verbose"), color: false, command: "pgpjs" },
       err
     );
   }

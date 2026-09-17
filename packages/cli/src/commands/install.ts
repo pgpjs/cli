@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 import { PgpjsError } from "@pgpjs/core";
 import type { CliContext } from "../context.js";
 import { detectProject, installArgs } from "../detect/project.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { boxLines, heading, muted, statusLine } from "../render/terminal.js";
 import { nextLibFiles, nodeLibFiles, writePlan } from "../scaffold/files.js";
 
 export async function runInstall(
@@ -45,22 +46,35 @@ export async function runInstall(
       packageManager: info.packageManager
     },
     () => {
-      console.log(`${green(mode, "✓")} Installed PGPJS ${target} integration\n`);
-      for (const f of files) {
-        if (f.action === "skip") console.log(`${yellow(mode, "•")} skipped ${f.relativePath}`);
-        else console.log(`${green(mode, "✓")} ${f.relativePath}`);
-      }
+      const color = mode.color;
+      const lines = [
+        heading(color, `Installed PGPJS ${target} integration`),
+        "",
+        ...files.map((f) =>
+          f.action === "skip"
+            ? statusLine(color, "dot", `skipped ${f.relativePath}`)
+            : statusLine(color, "ok", f.relativePath)
+        )
+      ];
       if (target === "next") {
-        console.log(`\n${yellow(mode, "┌──────────────────────────────────────────────────────────┐")}`);
-        console.log(`${yellow(mode, "│  PRIVATE KEYS MUST NEVER REACH THE BROWSER BUNDLE.      │")}`);
-        console.log(`${yellow(mode, "│  Import @/lib/pgpjs/server only from Server Components, │")}`);
-        console.log(`${yellow(mode, "│  Route Handlers, and Server Actions.                    │")}`);
-        console.log(`${yellow(mode, "│  Client Components may import @/lib/pgpjs/client only.  │")}`);
-        console.log(`${yellow(mode, "└──────────────────────────────────────────────────────────┘")}`);
-        console.log("\nExample:\n");
-        console.log('  import { encryptMessage } from "@/lib/pgpjs/server";');
-        console.log("  const encrypted = await encryptMessage(message, publicKey);\n");
+        lines.push(
+          "",
+          ...boxLines(
+            color,
+            [
+              "PRIVATE KEYS MUST NEVER REACH THE BROWSER BUNDLE.",
+              "Import @/lib/pgpjs/server only from Server Components,",
+              "Route Handlers, and Server Actions.",
+              "Client Components may import @/lib/pgpjs/client only."
+            ],
+            "yellow"
+          ),
+          "",
+          muted(color, "Example (server):"),
+          muted(color, 'import { encryptMessage } from "@/lib/pgpjs/server";')
+        );
       }
+      return lines;
     }
   );
 }

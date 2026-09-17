@@ -2,7 +2,8 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { CliContext } from "../context.js";
 import { detectProject } from "../detect/project.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { heading, muted, promptLine, statusLine } from "../render/terminal.js";
 import { promptConfirm } from "../prompts.js";
 import { planInit, writePlan } from "../scaffold/files.js";
 import { requireInteractive } from "../context.js";
@@ -20,9 +21,7 @@ export async function runInit(
       `Initialize PGPJS in ${info.cwd}? This will create config files and update .gitignore.`
     );
     if (!ok) {
-      emitSuccess(mode, { cancelled: true }, () => {
-        console.log("Cancelled.");
-      });
+      emitSuccess(mode, { cancelled: true }, () => [muted(mode.color, "Cancelled.")]);
       return;
     }
   } else if (!ctx.interactive && !opts.yes && !opts.dryRun) {
@@ -47,32 +46,35 @@ export async function runInit(
       skipped: plan.filter((p) => p.action === "skip").map((p) => p.relativePath)
     },
     () => {
-      console.log(green(mode, "PGPJS CLI"));
-      console.log("OpenPGP encryption toolkit\n");
-      console.log(`${green(mode, "✓")} Detected ${labelFramework(info.framework)}`);
-      console.log(
-        `${green(mode, "✓")} ${info.isTypeScript ? "TypeScript" : "JavaScript"} detected`
-      );
-      console.log(`${green(mode, "✓")} Package manager: ${info.packageManager}`);
+      const color = mode.color;
+      const lines = [
+        heading(color, "PGPJS CLI"),
+        muted(color, "OpenPGP encryption toolkit"),
+        "",
+        statusLine(color, "ok", `Detected ${labelFramework(info.framework)}`),
+        statusLine(color, "ok", `${info.isTypeScript ? "TypeScript" : "JavaScript"} detected`),
+        statusLine(color, "ok", `Package manager: ${info.packageManager}`)
+      ];
       for (const f of plan) {
         if (f.action === "skip") {
-          console.log(`${yellow(mode, "•")} skipped ${f.relativePath} (exists)`);
+          lines.push(statusLine(color, "dot", `skipped ${f.relativePath} (exists)`));
         } else if (opts.dryRun) {
-          console.log(`${yellow(mode, "•")} would ${f.action} ${f.relativePath}`);
+          lines.push(statusLine(color, "dot", `would ${f.action} ${f.relativePath}`));
         } else if (f.action === "append") {
-          console.log(`${green(mode, "✓")} appended ${f.relativePath}`);
+          lines.push(statusLine(color, "ok", `appended ${f.relativePath}`));
         } else {
-          console.log(`${green(mode, "✓")} created ${f.relativePath}`);
+          lines.push(statusLine(color, "ok", `created ${f.relativePath}`));
         }
       }
       if (!opts.dryRun) {
-        console.log(`${green(mode, "✓")} PGPJS configuration created`);
-        console.log(`${green(mode, "✓")} Environment template created`);
-        console.log("\nNext:");
-        console.log("  pgpjs install next     # Next.js App Router integration");
-        console.log("  pgpjs key generate     # create a project key");
-        console.log("  pgpjs doctor           # verify the setup");
+        lines.push(statusLine(color, "ok", "PGPJS configuration created"));
+        lines.push(statusLine(color, "ok", "Environment template created"));
+        lines.push("", muted(color, "Next:"));
+        lines.push(promptLine(color, "pgpjs install next"));
+        lines.push(promptLine(color, "pgpjs key generate"));
+        lines.push(promptLine(color, "pgpjs doctor"));
       }
+      return lines;
     }
   );
 }

@@ -19,7 +19,8 @@ import {
 import type { ScopeName } from "@pgpjs/security";
 import { ALL_SCOPES } from "@pgpjs/security";
 import type { CliContext } from "../context.js";
-import { emitSuccess, green, yellow, type OutputMode } from "../render/output.js";
+import { emitSuccess, type OutputMode } from "../render/output.js";
+import { heading, kvLine, muted, statusLine, wantsColor, formatScreen } from "../render/terminal.js";
 
 function tokenStore(ctx: CliContext): string {
   return join(ctx.resolved.keystoreRoot, "tokens.json");
@@ -46,7 +47,9 @@ export async function runMcpStart(
         "Non-loopback bind requires --allow-remote (and TLS termination in front)."
       );
     }
-    process.stderr.write(`PGPJS MCP HTTP listening on ${host}:${port}\n`);
+    process.stderr.write(
+      `${formatScreen(wantsColor(), [statusLine(wantsColor(), "ok", `MCP HTTP listening on ${host}:${port}`)])}\n`
+    );
     await startHttpServer({
       cwd: ctx.resolved.projectRoot,
       keystoreRoot: ctx.resolved.keystoreRoot,
@@ -95,14 +98,16 @@ export async function runMcpTokenCreate(
       expiresAt: record.expiresAt,
       token
     },
-    () => {
-      console.log("MCP token created\n");
-      console.log(`Name: ${record.name}`);
-      console.log(`Id:   ${record.id}`);
-      console.log(`Token: ${token}`);
-      console.log(`\n${yellow(mode, "This is the only time the full token is displayed.")}`);
-      console.log("Store it in a secret manager. Only a hash is saved locally.");
-    }
+    () => [
+      heading(mode.color, "MCP token created"),
+      "",
+      kvLine(mode.color, "Name", record.name),
+      kvLine(mode.color, "Id", record.id),
+      kvLine(mode.color, "Token", token),
+      "",
+      statusLine(mode.color, "warn", "This is the only time the full token is displayed."),
+      muted(mode.color, "Store it in a secret manager. Only a hash is saved locally.")
+    ]
   );
 }
 
@@ -110,29 +115,33 @@ export async function runMcpTokenList(ctx: CliContext, mode: OutputMode): Promis
   const tokens = (await listTokens(tokenStore(ctx))).map(publicTokenView);
   emitSuccess(mode, { tokens }, () => {
     if (tokens.length === 0) {
-      console.log("No MCP tokens.");
-      return;
+      return [muted(mode.color, "No MCP tokens.")];
     }
-    for (const t of tokens) {
-      console.log(`${t.id}  ${t.name}  ${t.status}  scopes=${t.scopes.join(",")}  expires=${t.expiresAt}`);
-    }
+    return [
+      heading(mode.color, `MCP tokens (${tokens.length})`),
+      "",
+      ...tokens.map(
+        (t) =>
+          `${statusLine(mode.color, t.status === "active" ? "ok" : "dot", t.name)}  ${t.id}  scopes=${t.scopes.join(",")}  expires=${t.expiresAt}`
+      )
+    ];
   });
 }
 
 export async function runMcpTokenRevoke(ctx: CliContext, id: string, mode: OutputMode): Promise<void> {
   const rec = await revokeToken(tokenStore(ctx), id);
-  emitSuccess(mode, { id: rec.id, revokedAt: rec.revokedAt }, () => {
-    console.log(`${green(mode, "✓")} Revoked token ${rec.id} (${rec.name})`);
-  });
+  emitSuccess(mode, { id: rec.id, revokedAt: rec.revokedAt }, () => [
+    statusLine(mode.color, "ok", `Revoked token ${rec.id} (${rec.name})`)
+  ]);
 }
 
 export async function runMcpTokenRotate(ctx: CliContext, id: string, mode: OutputMode): Promise<void> {
   const { record, token } = await rotateToken(tokenStore(ctx), id);
-  emitSuccess(mode, { id: record.id, name: record.name, token }, () => {
-    console.log(`${green(mode, "✓")} Rotated token ${record.name}`);
-    console.log(`Token: ${token}`);
-    console.log(yellow(mode, "The previous secret is dead immediately. This is the only time the new token is shown."));
-  });
+  emitSuccess(mode, { id: record.id, name: record.name, token }, () => [
+    statusLine(mode.color, "ok", `Rotated token ${record.name}`),
+    kvLine(mode.color, "Token", token),
+    statusLine(mode.color, "warn", "The previous secret is dead immediately. This is the only time the new token is shown.")
+  ]);
 }
 
 export async function runMcpConfig(
@@ -167,10 +176,14 @@ export async function runMcpConfig(
 export async function runMcpAudit(ctx: CliContext, mode: OutputMode): Promise<void> {
   const events = await readAudit(join(ctx.resolved.projectRoot, ".pgpjs/audit.log"));
   emitSuccess(mode, { events }, () => {
-    for (const e of events) {
-      console.log(`${e.timestamp}  ${e.decision}  ${e.tool}  token=${e.tokenId ?? "-"}  ${e.reason}`);
-    }
-    if (events.length === 0) console.log("No audit events.");
+    if (events.length === 0) return [muted(mode.color, "No audit events.")];
+    return [
+      heading(mode.color, "MCP audit"),
+      "",
+      ...events.map((e) =>
+        kvLine(mode.color, e.timestamp, `${e.decision}  ${e.tool}  token=${e.tokenId ?? "-"}  ${e.reason}`, 22)
+      )
+    ];
   });
 }
 
