@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
+import { createConnection } from "node:net";
 import { PgpjsError } from "@pgpjs/core";
 import {
   createToken,
@@ -170,6 +171,56 @@ export async function runMcpConfig(
 
   emitSuccess(mode, payload, () => {
     console.log(JSON.stringify(payload, null, 2));
+  });
+}
+
+export async function runMcpStatus(ctx: CliContext, mode: OutputMode): Promise<void> {
+  const configPath = join(ctx.resolved.keystoreRoot, "mcp.config.json");
+  const existing = await loadMcpConfig(configPath);
+  const tokens = (await listTokens(tokenStore(ctx))).map(publicTokenView);
+  const port = 8787;
+  const host = "127.0.0.1";
+  const listening = await loopbackOpen(host, port);
+
+  emitSuccess(
+    mode,
+    {
+      configPath: existsSync(configPath) ? configPath : null,
+      permissions: existing.permissions,
+      tokens: tokens.length,
+      http: { host, port, listening }
+    },
+    () => {
+      const color = mode.color;
+      return [
+        heading(color, "MCP status"),
+        "",
+        kvLine(color, "config", existsSync(configPath) ? configPath : "(none)"),
+        kvLine(color, "tokens", String(tokens.length)),
+        kvLine(color, "http", listening ? `${host}:${port} listening` : `${host}:${port} not listening`),
+        kvLine(color, "decrypt", existing.permissions.decrypt ? "allowed" : "denied"),
+        kvLine(color, "sign", existing.permissions.sign ? "allowed" : "denied"),
+        kvLine(color, "exportPrivate", "denied"),
+        "",
+        muted(color, "Network MCP: pgpjs mcp start --http"),
+        muted(color, "Tokens:      pgpjs token create --name local")
+      ];
+    }
+  );
+}
+
+function loopbackOpen(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = createConnection({ host, port });
+    const done = (ok: boolean) => {
+      sock.removeAllListeners();
+      sock.destroy();
+      resolve(ok);
+    };
+    sock.setTimeout(400);
+    sock.once("connect", () => done(true));
+    sock.once("error", () => done(false));
+    sock.once("timeout", () => done(false));
   });
 }
 

@@ -74,7 +74,7 @@ export async function startHttpServer(options: McpStartOptions): Promise<{ close
   if (!options.token && !process.env["PGPJS_MCP_TOKEN"]) {
     throw new PgpjsError(
       "PERMISSION_DENIED",
-      "HTTP MCP transport requires a bearer token. Create one with `pgpjs mcp token create` and pass PGPJS_MCP_TOKEN."
+      "HTTP MCP transport requires a bearer token. Create one with `pgpjs token create` and pass PGPJS_MCP_TOKEN."
     );
   }
   const host = options.http.host;

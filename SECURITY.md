@@ -55,7 +55,7 @@ The MCP permission model is the novel part of this design and should be treated 
 1. Generate a revocation certificate if you do not already have `.pgpjs/revocations/<fp>.rev`.
 2. Publish / share the revocation with anyone who had the public key.
 3. Generate a new key. Data already encrypted to the old public key stays readable by anyone who has the leaked private key — rotating does not un-compromise old ciphertext.
-4. Revoke MCP tokens (`pgpjs mcp token revoke` / `rotate`).
+4. Revoke MCP tokens (`pgpjs token revoke` / `rotate`).
 5. Search git history (`pgpjs security scan`) and CI logs. Assume they are public.
 
 ## Maintainer of record

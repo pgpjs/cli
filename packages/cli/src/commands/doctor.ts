@@ -48,7 +48,7 @@ export async function runDoctor(ctx: CliContext, mode: OutputMode): Promise<numb
         id: "openpgp",
         status: "warn",
         message: "openpgp is not installed in this project",
-        fix: "Run `pgpjs install next` or `npm install openpgp`"
+        fix: "Run `pgpjs install react` and `pgpjs install node`, or `pgpjs install next`"
       });
     }
   }
@@ -152,17 +152,26 @@ export async function runDoctor(ctx: CliContext, mode: OutputMode): Promise<numb
     checks.push({ id: "gitignore", status: "pass", message: ".pgpjs/ is gitignored" });
   }
 
-  if (info.framework === "next-app" || info.framework === "next-pages") {
-    const clientImport = scanClientImports(info.cwd, info.hasSrcDir);
+  if (
+    info.framework === "next-app" ||
+    info.framework === "next-pages" ||
+    info.framework === "react" ||
+    info.framework === "vite"
+  ) {
+    const clientImport = scanClientImports(info.cwd, info.hasSrcDir, info.framework);
     if (clientImport) {
       checks.push({
         id: "client-boundary",
         status: "fail",
         message: `Client module imports server-only PGPJS code (${clientImport})`,
-        fix: "Import @/lib/pgpjs/client from Client Components, never server.ts or keys.ts"
+        fix: "Import src/lib/pgpjs/client from the UI, never server.ts, keys.ts, or http.ts"
       });
     } else {
-      checks.push({ id: "client-boundary", status: "pass", message: "No client/server import violations detected" });
+      checks.push({
+        id: "client-boundary",
+        status: "pass",
+        message: "No client/server import violations detected"
+      });
     }
   }
 
@@ -186,7 +195,7 @@ export async function runDoctor(ctx: CliContext, mode: OutputMode): Promise<numb
   return failed ? EXIT_CODES.GENERIC_ERROR : EXIT_CODES.OK;
 }
 
-function scanClientImports(cwd: string, hasSrc: boolean): string | undefined {
+function scanClientImports(cwd: string, hasSrc: boolean, framework: string): string | undefined {
   const roots = [hasSrc ? join(cwd, "src") : join(cwd, "app"), join(cwd, "src/app"), join(cwd, "app")];
   const stack = [
     ...roots.filter((p) => {
@@ -219,15 +228,17 @@ function scanClientImports(cwd: string, hasSrc: boolean): string | undefined {
         continue;
       }
       if (!/\.(tsx|jsx|ts|js)$/.test(name)) continue;
+      if (/lib\/pgpjs\/(server|keys|http|index|encryption)\.(ts|js)$/.test(full)) continue;
       let text: string;
       try {
         text = readFileSync(full, "utf8");
       } catch {
         continue;
       }
-      const isClient = text.includes('"use client"') || text.includes("'use client'");
-      if (!isClient) continue;
-      if (/from\s+["'][^"']*lib\/pgpjs\/(server|keys|encryption)["']/.test(text)) {
+      const markedClient = text.includes('"use client"') || text.includes("'use client'");
+      const spaClient = framework === "react" || framework === "vite";
+      if (!markedClient && !spaClient) continue;
+      if (/from\s+["'][^"']*lib\/pgpjs\/(server|keys|encryption|http)["']/.test(text)) {
         return full;
       }
     }

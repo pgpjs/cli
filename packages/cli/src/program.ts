@@ -32,6 +32,7 @@ import {
   runMcpAudit,
   runMcpConfig,
   runMcpStart,
+  runMcpStatus,
   runMcpTokenCreate,
   runMcpTokenList,
   runMcpTokenRevoke,
@@ -153,10 +154,18 @@ export function buildProgram(): Command {
     });
   install
     .command("node")
-    .description("Install Node.js / TypeScript helpers")
+    .description("Install Node.js network / server helpers")
     .option("--skip-install", "Scaffold files without installing packages")
     .action(async (opts, cmd) => {
       await withCtx(cmd, "install.node", (ctx, mode) => runInstall(ctx, "node", opts, mode));
+    });
+  install
+    .command("react")
+    .description("Install React / Vite client helpers (no private keys)")
+    .option("--force", "Run even if React is not detected")
+    .option("--skip-install", "Scaffold files without installing packages")
+    .action(async (opts, cmd) => {
+      await withCtx(cmd, "install.react", (ctx, mode) => runInstall(ctx, "react", opts, mode));
     });
 
   const key = program.command("key").description("Manage OpenPGP keys");
@@ -289,7 +298,7 @@ export function buildProgram(): Command {
       await withCtx(cmd, "doctor", (ctx, mode) => runDoctor(ctx, mode));
     });
 
-  const security = program.command("security").description("Security checks");
+  const security = program.command("security").description("Run security checks");
   security
     .command("scan")
     .description("Scan for exposed keys, tokens, and insecure configuration")
@@ -298,6 +307,9 @@ export function buildProgram(): Command {
     .action(async (opts, cmd) => {
       await withCtx(cmd, "security.scan", (ctx, mode) => runSecurityScan(ctx, opts, mode));
     });
+  security.action(async (opts, cmd) => {
+    await withCtx(cmd, "security.scan", (ctx, mode) => runSecurityScan(ctx, opts, mode));
+  });
 
   const mcp = program.command("mcp").description("Run and configure MCP");
   mcp
@@ -310,34 +322,15 @@ export function buildProgram(): Command {
     .action(async (opts, cmd) => {
       await withCtx(cmd, "mcp.start", (ctx) => runMcpStart(ctx, opts));
     });
+  mcp
+    .command("status")
+    .description("Show MCP server, token, and network status")
+    .action(async (_opts, cmd) => {
+      await withCtx(cmd, "mcp.status", (ctx, mode) => runMcpStatus(ctx, mode));
+    });
   mcp.action(async (_opts, cmd) => {
     await withCtx(cmd, "mcp.start", (ctx) => runMcpStart(ctx, {}));
   });
-
-  const token = mcp.command("token").description("Manage MCP authentication tokens");
-  token
-    .command("create")
-    .requiredOption("--name <name>", "Token name")
-    .option("--scope <scope>", "Repeatable scope", collect, [])
-    .option("--expires <duration>", "30d, 12h, 1y (default 90d)")
-    .action(async (opts, cmd) => {
-      await withCtx(cmd, "mcp.token.create", (ctx, mode) => runMcpTokenCreate(ctx, opts, mode));
-    });
-  token.command("list").action(async (_opts, cmd) => {
-    await withCtx(cmd, "mcp.token.list", (ctx, mode) => runMcpTokenList(ctx, mode));
-  });
-  token
-    .command("revoke")
-    .argument("<id>", "Token id")
-    .action(async (id, _opts, cmd) => {
-      await withCtx(cmd, "mcp.token.revoke", (ctx, mode) => runMcpTokenRevoke(ctx, id, mode));
-    });
-  token
-    .command("rotate")
-    .argument("<id>", "Token id")
-    .action(async (id, _opts, cmd) => {
-      await withCtx(cmd, "mcp.token.rotate", (ctx, mode) => runMcpTokenRotate(ctx, id, mode));
-    });
 
   mcp
     .command("config")
@@ -352,8 +345,42 @@ export function buildProgram(): Command {
     await withCtx(cmd, "mcp.audit", (ctx, mode) => runMcpAudit(ctx, mode));
   });
 
-  const cfg = program.command("config").description("Show effective configuration");
+  const token = program.command("token").description("Manage MCP authentication tokens");
+  token
+    .command("create")
+    .description("Create an MCP token (shown once)")
+    .requiredOption("--name <name>", "Token name")
+    .option("--scope <scope>", "Repeatable scope", collect, [])
+    .option("--expires <duration>", "30d, 12h, 1y (default 90d)")
+    .action(async (opts, cmd) => {
+      await withCtx(cmd, "token.create", (ctx, mode) => runMcpTokenCreate(ctx, opts, mode));
+    });
+  token
+    .command("list")
+    .description("List MCP tokens (hashes only)")
+    .action(async (_opts, cmd) => {
+      await withCtx(cmd, "token.list", (ctx, mode) => runMcpTokenList(ctx, mode));
+    });
+  token
+    .command("revoke")
+    .argument("<id>", "Token id")
+    .description("Revoke an MCP token")
+    .action(async (id, _opts, cmd) => {
+      await withCtx(cmd, "token.revoke", (ctx, mode) => runMcpTokenRevoke(ctx, id, mode));
+    });
+  token
+    .command("rotate")
+    .argument("<id>", "Token id")
+    .description("Rotate an MCP token")
+    .action(async (id, _opts, cmd) => {
+      await withCtx(cmd, "token.rotate", (ctx, mode) => runMcpTokenRotate(ctx, id, mode));
+    });
+
+  const cfg = program.command("config").description("Manage configuration");
   cfg.command("show").description("Print effective config with origins").action(async (_opts, cmd) => {
+    await withCtx(cmd, "config.show", (ctx, mode) => runConfigShow(ctx, mode));
+  });
+  cfg.action(async (_opts, cmd) => {
     await withCtx(cmd, "config.show", (ctx, mode) => runConfigShow(ctx, mode));
   });
 

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildProgram } from "./program.js";
 import { formatRootHelp, formatVersion, stripAnsi } from "./render/terminal.js";
 import { detectProject } from "./detect/project.js";
-import { planInit, writePlan, nextLibFiles } from "./scaffold/files.js";
+import { planInit, writePlan, nextLibFiles, nodeLibFiles, reactLibFiles } from "./scaffold/files.js";
 
 describe("project detection and init plan", () => {
   const dirs: string[] = [];
@@ -57,6 +57,47 @@ describe("project detection and init plan", () => {
     expect(names).toContain("src/lib/pgpjs/server.ts");
     expect(names).toContain("src/lib/pgpjs/keys.ts");
   });
+
+  it("install react scaffolds a client-only module", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-react-"));
+    dirs.push(dir);
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "app", dependencies: { react: "18.0.0", vite: "6.0.0" } })
+    );
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "tsconfig.json"), "{}");
+    const files = reactLibFiles(detectProject(dir));
+    writePlan(dir, files, false);
+    expect(files.map((f) => f.relativePath).join("\n")).toContain("src/lib/pgpjs/client.ts");
+    expect(files.some((f) => f.relativePath.includes("server.ts"))).toBe(false);
+    const client = files.find((f) => f.relativePath.endsWith("client.ts"));
+    expect(client?.content).toContain("encryptToPublicKey");
+    expect(client?.content).toContain("postToNodeNetwork");
+    expect(client?.content).toContain("decryptViaNode");
+    expect(client?.content).not.toContain("readPrivateKey");
+    expect(client?.content).not.toContain("PGPJS_SERVER_PRIVATE_KEY_FILE");
+  });
+
+  it("install node scaffolds a loopback network server", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pgpjs-node-"));
+    dirs.push(dir);
+    await writeFile(join(dir, "package.json"), JSON.stringify({ name: "app" }));
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "tsconfig.json"), "{}");
+    const files = nodeLibFiles(detectProject(dir));
+    writePlan(dir, files, false);
+    const names = files.map((f) => f.relativePath).join("\n");
+    expect(names).toContain("src/lib/pgpjs/http.ts");
+    expect(names).toContain("src/lib/pgpjs/server.ts");
+    expect(names).toContain("src/lib/pgpjs/keys.ts");
+    const http = files.find((f) => f.relativePath.endsWith("http.ts"));
+    expect(http?.content).toContain("127.0.0.1");
+    expect(http?.content).toContain("/pgpjs/decrypt");
+    expect(http?.content).toContain("/pgpjs/sign");
+    expect(http?.content).toContain("Access-Control-Allow-Origin");
+    expect(http?.content).toContain("PGPJS_ALLOW_REMOTE");
+  });
 });
 
 describe("CLI help", () => {
@@ -64,15 +105,14 @@ describe("CLI help", () => {
     const text = formatRootHelp(false, "1.0.0");
     expect(text).toContain("PGPJS CLI");
     expect(text).toContain("OpenPGP encryption toolkit");
-    expect(text).toContain("$ pgpjs key generate");
-    expect(text).toContain("$ pgpjs encrypt message.txt");
     expect(text).toContain("READY · LOCAL CRYPTO");
     expect(text).toContain("____");
     expect(text).toContain("oo");
-    expect(text).not.toContain("http://");
-    expect(text).toContain("encrypt");
+    expect(text).toContain("Core");
+    expect(text).toContain("Developer");
+    expect(text).toContain("AI / MCP");
+    expect(text).toContain("token");
     expect(text).toContain("mcp");
-    expect(text).toContain("pgpjs");
     expect(text).not.toContain("http://");
     expect(text).not.toContain("https://");
     expect(text).not.toContain("<html");
@@ -111,8 +151,19 @@ describe("CLI help", () => {
     expect(text).toContain("generate");
     expect(text).toContain("$ pgpjs key generate");
     expect(text).not.toContain("display help for command");
-    expect(text).toContain("$ pgpjs key generate");
     expect(text).not.toContain("http://");
     expect(text).not.toContain("https://");
+  });
+
+  it("exposes token as a top-level command", () => {
+    const program = buildProgram();
+    const names = program.commands.map((c) => c.name());
+    expect(names).toContain("token");
+    expect(names).toContain("mcp");
+    const token = program.commands.find((c) => c.name() === "token");
+    expect(token?.commands.map((c) => c.name()).sort()).toEqual(["create", "list", "revoke", "rotate"]);
+    const mcp = program.commands.find((c) => c.name() === "mcp");
+    expect(mcp?.commands.map((c) => c.name())).toEqual(expect.arrayContaining(["start", "status", "config"]));
+    expect(mcp?.commands.map((c) => c.name())).not.toContain("token");
   });
 });

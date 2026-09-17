@@ -4,7 +4,7 @@ import type { CliContext } from "../context.js";
 import { detectProject, installArgs } from "../detect/project.js";
 import { emitSuccess, type OutputMode } from "../render/output.js";
 import { boxLines, heading, muted, statusLine } from "../render/terminal.js";
-import { nextLibFiles, nodeLibFiles, writePlan } from "../scaffold/files.js";
+import { nextLibFiles, nodeLibFiles, reactLibFiles, writePlan } from "../scaffold/files.js";
 
 export async function runInstall(
   ctx: CliContext,
@@ -20,8 +20,16 @@ export async function runInstall(
       });
     }
   }
+  if (target === "react") {
+    if (info.framework !== "react" && info.framework !== "vite" && info.framework !== "remix" && !opts.force) {
+      throw new PgpjsError("USAGE_ERROR", "This does not look like a React project.", {
+        hint: "Run from a React/Vite app, or pass --force. For decrypt/sign, also run pgpjs install node."
+      });
+    }
+  }
 
-  const files = target === "next" ? nextLibFiles(info) : nodeLibFiles(info);
+  const files =
+    target === "next" ? nextLibFiles(info) : target === "react" ? reactLibFiles(info) : nodeLibFiles(info);
   const written = writePlan(info.cwd, files, false);
 
   const deps = target === "next" ? ["openpgp@6.3.1", "server-only"] : ["openpgp@6.3.1"];
@@ -72,6 +80,31 @@ export async function runInstall(
           "",
           muted(color, "Example (server):"),
           muted(color, 'import { encryptMessage } from "@/lib/pgpjs/server";')
+        );
+      }
+      if (target === "react") {
+        lines.push(
+          "",
+          ...boxLines(
+            color,
+            [
+              "PRIVATE KEYS MUST NEVER REACH THE REACT BUNDLE.",
+              "Encrypt and verify in the browser with public keys only.",
+              "Decrypt and sign on Node: pgpjs install node",
+              "then call http://127.0.0.1:8788 from the client."
+            ],
+            "yellow"
+          ),
+          "",
+          muted(color, "Next: pgpjs install node")
+        );
+      }
+      if (target === "node") {
+        lines.push(
+          "",
+          muted(color, "Network server (loopback):"),
+          muted(color, "PGPJS_SERVER_PRIVATE_KEY_FILE=... node src/lib/pgpjs/http.ts"),
+          muted(color, "React client: decryptViaNode(ciphertext) → 127.0.0.1:8788")
         );
       }
       return lines;

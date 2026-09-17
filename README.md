@@ -76,28 +76,33 @@ pgpjs key list --json
 ```
 pgpjs <command> [options]
 
-Commands:
+Core
   init          Initialize PGPJS in a project
-  install       Install PGPJS integrations (next, node)
+  install       Install PGPJS integrations (react, node, next)
   key           Manage OpenPGP keys
   encrypt       Encrypt data
   decrypt       Decrypt data
-  sign          Sign data (detached by default)
+  sign          Sign data
   verify        Verify signatures
-  doctor        Diagnose project configuration
-  security      Security checks
-  mcp           Run and configure MCP
-  config        Show effective configuration
-  version       Show version
 
-Options:
-  --json        Machine-readable output
-  --quiet       Minimal output
-  --verbose     Verbose output
-  --no-color    Disable colour
-  --no-input    Never prompt
-  --help        Show help
+Developer
+  doctor        Diagnose project configuration
+  security      Run security checks
+  config        Manage configuration
+
+AI / MCP
+  mcp           Run and configure MCP
+  token         Manage MCP authentication tokens
 ```
+
+## React + Node network
+
+```bash
+pgpjs install react    # browser: encrypt/verify with public keys only
+pgpjs install node     # Node loopback HTTP for decrypt/sign
+```
+
+The React bundle must never see a private key. Decrypt and sign over `http://127.0.0.1:8788` from the Node helper (`decryptViaNode` / `signViaNode`). The Node server binds loopback only and allows CORS from `localhost` / `127.0.0.1`.
 
 ## Next.js
 
@@ -111,8 +116,10 @@ Generates `src/lib/pgpjs/{client,server,keys,encryption}.ts` with a hard client/
 
 ```bash
 pgpjs mcp start
-pgpjs mcp token create --name "Development Agent" --scope encrypt --scope verify
+pgpjs mcp status
 pgpjs mcp config
+pgpjs token create --name "Development Agent" --scope encrypt --scope verify
+pgpjs token list
 ```
 
 Private-key export is **not implementable** over MCP. Decrypt and sign are off by default. Effective permission is `config ∩ token.scopes`. See [docs/mcp.md](docs/mcp.md) and [docs/ai-agents.md](docs/ai-agents.md).

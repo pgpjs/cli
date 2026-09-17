@@ -70,7 +70,14 @@ export async function runInit(
         lines.push(statusLine(color, "ok", "PGPJS configuration created"));
         lines.push(statusLine(color, "ok", "Environment template created"));
         lines.push("", muted(color, "Next:"));
-        lines.push(promptLine(color, "pgpjs install next"));
+        if (info.framework === "react" || info.framework === "vite") {
+          lines.push(promptLine(color, "pgpjs install react"));
+          lines.push(promptLine(color, "pgpjs install node"));
+        } else if (info.framework === "next-app" || info.framework === "next-pages") {
+          lines.push(promptLine(color, "pgpjs install next"));
+        } else {
+          lines.push(promptLine(color, "pgpjs install node"));
+        }
         lines.push(promptLine(color, "pgpjs key generate"));
         lines.push(promptLine(color, "pgpjs doctor"));
       }
@@ -82,6 +89,8 @@ export async function runInit(
 function labelFramework(fw: string): string {
   if (fw === "next-app") return "Next.js (App Router)";
   if (fw === "next-pages") return "Next.js (Pages Router)";
+  if (fw === "vite") return "Vite";
+  if (fw === "react") return "React";
   if (fw === "node") return "Node.js";
   return fw;
 }

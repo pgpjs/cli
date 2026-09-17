@@ -273,34 +273,238 @@ export async function POST(request: Request): Promise<Response> {
 
 export function nodeLibFiles(info: ProjectInfo): PlannedFile[] {
   const ext = info.isTypeScript ? "ts" : "js";
+  const ts = info.isTypeScript;
   const base = info.hasSrcDir ? "src/lib/pgpjs" : "lib/pgpjs";
-  return [
-    {
-      relativePath: `${base}/index.${ext}`,
-      action: existsSync(join(info.cwd, `${base}/index.${ext}`)) ? "skip" : "create",
-      content: `import * as openpgp from "openpgp";
-import { readFile } from "node:fs/promises";
+  const files: PlannedFile[] = [];
 
-export async function encryptMessage(message: string, publicKeyArmored: string): Promise<string> {
+  files.push({
+    relativePath: `${base}/keys.${ext}`,
+    action: existsSync(join(info.cwd, `${base}/keys.${ext}`)) ? "skip" : "create",
+    content: `import { readFile } from "node:fs/promises";
+import * as openpgp from "openpgp";
+
+if (typeof window !== "undefined") {
+  throw new Error("keys.ts is server-only. Do not import it from React or the browser.");
+}
+
+export async function loadPublicKey(file = process.env.PGPJS_SERVER_PUBLIC_KEY_FILE)${ts ? ": Promise<openpgp.Key>" : ""} {
+  if (!file) throw new Error("PGPJS_SERVER_PUBLIC_KEY_FILE is not set.");
+  return openpgp.readKey({ armoredKey: await readFile(file, "utf8") });
+}
+
+export async function loadPrivateKey(passphrase${ts ? "?: string" : ""})${ts ? ": Promise<openpgp.PrivateKey>" : ""} {
+  const file = process.env.PGPJS_SERVER_PRIVATE_KEY_FILE;
+  if (!file) throw new Error("PGPJS_SERVER_PRIVATE_KEY_FILE is not set. Never inline a private key.");
+  const key = await openpgp.readPrivateKey({ armoredKey: await readFile(file, "utf8") });
+  if (key.isDecrypted()) return key;
+  const pass = passphrase ?? (process.env.PGPJS_PASSPHRASE_FILE
+    ? (await readFile(process.env.PGPJS_PASSPHRASE_FILE, "utf8")).trim()
+    : undefined);
+  if (!pass) throw new Error("Private key is encrypted. Set PGPJS_PASSPHRASE_FILE.");
+  return openpgp.decryptKey({ privateKey: key, passphrase: pass });
+}
+`
+  });
+
+  files.push({
+    relativePath: `${base}/server.${ext}`,
+    action: existsSync(join(info.cwd, `${base}/server.${ext}`)) ? "skip" : "create",
+    content: `import * as openpgp from "openpgp";
+import { loadPrivateKey, loadPublicKey } from "./keys";
+
+if (typeof window !== "undefined") {
+  throw new Error("server.ts is Node-only. Private keys must stay on the network server.");
+}
+
+export async function encryptMessage(message${ts ? ": string" : ""}, publicKeyArmored${ts ? ": string" : ""})${ts ? ": Promise<string>" : ""} {
   const key = await openpgp.readKey({ armoredKey: publicKeyArmored });
   const encrypted = await openpgp.encrypt({
     message: await openpgp.createMessage({ text: message }),
     encryptionKeys: key,
     format: "armored"
   });
-  return encrypted as string;
+  return encrypted${ts ? " as string" : ""};
 }
 
-export async function decryptMessage(ciphertext: string, privateKeyPath: string, passphrase?: string): Promise<string> {
-  const armored = await readFile(privateKeyPath, "utf8");
-  let key = await openpgp.readPrivateKey({ armoredKey: armored });
-  if (!key.isDecrypted()) {
-    if (!passphrase) throw new Error("Passphrase required");
-    key = await openpgp.decryptKey({ privateKey: key, passphrase });
-  }
+export async function decryptMessage(ciphertext${ts ? ": string" : ""}, passphrase${ts ? "?: string" : ""})${ts ? ": Promise<string>" : ""} {
+  const privateKey = await loadPrivateKey(passphrase);
   const message = await openpgp.readMessage({ armoredMessage: ciphertext });
-  const decrypted = await openpgp.decrypt({ message, decryptionKeys: key });
-  return decrypted.data as string;
+  const decrypted = await openpgp.decrypt({ message, decryptionKeys: privateKey });
+  return decrypted.data${ts ? " as string" : ""};
+}
+
+export async function signMessage(message${ts ? ": string" : ""}, passphrase${ts ? "?: string" : ""})${ts ? ": Promise<string>" : ""} {
+  const privateKey = await loadPrivateKey(passphrase);
+  const signed = await openpgp.sign({
+    message: await openpgp.createMessage({ text: message }),
+    signingKeys: privateKey,
+    detached: true,
+    format: "armored"
+  });
+  return signed${ts ? " as string" : ""};
+}
+
+export { loadPrivateKey, loadPublicKey };
+`
+  });
+
+  files.push({
+    relativePath: `${base}/http.${ext}`,
+    action: existsSync(join(info.cwd, `${base}/http.${ext}`)) ? "skip" : "create",
+    content: `/**
+ * Loopback HTTP API for a React (or other) client.
+ * Private keys never leave this Node process.
+ * CORS is limited to http(s)://127.0.0.1 and http(s)://localhost.
+ *
+ *   PGPJS_SERVER_PRIVATE_KEY_FILE=.pgpjs/keys/<fp>.sec.asc \\
+ *   PGPJS_PASSPHRASE_FILE=./pass.txt \\
+ *   node --experimental-strip-types src/lib/pgpjs/http.ts
+ */
+import { createServer${ts ? ", type IncomingMessage, type ServerResponse" : ""} } from "node:http";
+import { pathToFileURL } from "node:url";
+import { decryptMessage, encryptMessage, signMessage } from "./server";
+import { loadPublicKey } from "./keys";
+
+const HOST = process.env.PGPJS_HTTP_HOST ?? "127.0.0.1";
+const PORT = Number(process.env.PGPJS_HTTP_PORT ?? "8788");
+
+function loopbackOrigin(origin${ts ? "?: string" : ""}) {
+  if (!origin) return null;
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (u.hostname === "127.0.0.1" || u.hostname === "localhost") return origin;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function setCors(req${ts ? ": IncomingMessage" : ""}, res${ts ? ": ServerResponse" : ""}) {
+  const allowed = loopbackOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined);
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", allowed);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "content-type");
+    res.setHeader("Vary", "Origin");
+  }
+}
+
+async function readBody(req${ts ? ": IncomingMessage" : ""}) {
+  const chunks${ts ? ": Buffer[]" : ""} = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+export function startPgpjsNetworkServer() {
+  if (HOST !== "127.0.0.1" && HOST !== "localhost" && process.env.PGPJS_ALLOW_REMOTE !== "1") {
+    throw new Error("Refusing non-loopback bind. Set PGPJS_ALLOW_REMOTE=1 only behind TLS.");
+  }
+  const server = createServer(async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      if (req.method === "GET" && req.url === "/health") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, service: "pgpjs-node" }));
+        return;
+      }
+      if (req.method === "POST" && req.url === "/pgpjs/decrypt") {
+        const plaintext = await decryptMessage(await readBody(req));
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end(plaintext);
+        return;
+      }
+      if (req.method === "POST" && req.url === "/pgpjs/sign") {
+        const signature = await signMessage(await readBody(req));
+        res.writeHead(200, { "content-type": "application/pgp-signature" });
+        res.end(signature);
+        return;
+      }
+      if (req.method === "POST" && req.url === "/pgpjs/encrypt") {
+        const pub = await loadPublicKey();
+        const encrypted = await encryptMessage(await readBody(req), pub.armor());
+        res.writeHead(200, { "content-type": "application/pgp-encrypted" });
+        res.end(encrypted);
+        return;
+      }
+      res.writeHead(404);
+      res.end("not found");
+    } catch (err) {
+      res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+      res.end(err instanceof Error ? err.message : "error");
+    }
+  });
+  server.listen(PORT, HOST, () => {
+    process.stderr.write(\`PGPJS node network listening on \${HOST}:\${PORT}\\n\`);
+  });
+  return server;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  startPgpjsNetworkServer();
+}
+`
+  });
+
+  files.push({
+    relativePath: `${base}/index.${ext}`,
+    action: existsSync(join(info.cwd, `${base}/index.${ext}`)) ? "skip" : "create",
+    content: `export { encryptMessage, decryptMessage, signMessage } from "./server";
+export { startPgpjsNetworkServer } from "./http";
+`
+  });
+
+  return files;
+}
+
+export function reactLibFiles(info: ProjectInfo): PlannedFile[] {
+  const ext = info.isTypeScript ? "ts" : "js";
+  const base = info.hasSrcDir ? "src/lib/pgpjs" : "lib/pgpjs";
+  return [
+    {
+      relativePath: `${base}/client.${ext}`,
+      action: existsSync(join(info.cwd, `${base}/client.${ext}`)) ? "skip" : "create",
+      content: `/**
+ * Browser-safe PGPJS helpers for React.
+ * NEVER import private keys, keystore loaders, or server.ts from this module.
+ * Decrypt/sign over the network with pgpjs install node (127.0.0.1).
+ */
+import * as openpgp from "openpgp";
+
+export async function encryptToPublicKey(message${info.isTypeScript ? ": string" : ""}, publicKeyArmored${info.isTypeScript ? ": string" : ""})${info.isTypeScript ? ": Promise<string>" : ""} {
+  const key = await openpgp.readKey({ armoredKey: publicKeyArmored });
+  if (key.isPrivate()) {
+    throw new Error("Security violation: a private key must never be used in the React bundle.");
+  }
+  const encrypted = await openpgp.encrypt({
+    message: await openpgp.createMessage({ text: message }),
+    encryptionKeys: key,
+    format: "armored"
+  });
+  return encrypted${info.isTypeScript ? " as string" : ""};
+}
+
+export async function postToNodeNetwork(path${info.isTypeScript ? ": string" : ""}, body${info.isTypeScript ? ": string" : ""}, baseUrl = "http://127.0.0.1:8788")${info.isTypeScript ? ": Promise<string>" : ""} {
+  const res = await fetch(\`\${baseUrl}\${path}\`, {
+    method: "POST",
+    headers: { "content-type": "text/plain" },
+    body
+  });
+  if (!res.ok) throw new Error(\`PGPJS node network \${res.status}\`);
+  return res.text();
+}
+
+export function decryptViaNode(ciphertext${info.isTypeScript ? ": string" : ""}, baseUrl = "http://127.0.0.1:8788")${info.isTypeScript ? ": Promise<string>" : ""} {
+  return postToNodeNetwork("/pgpjs/decrypt", ciphertext, baseUrl);
+}
+
+export function signViaNode(message${info.isTypeScript ? ": string" : ""}, baseUrl = "http://127.0.0.1:8788")${info.isTypeScript ? ": Promise<string>" : ""} {
+  return postToNodeNetwork("/pgpjs/sign", message, baseUrl);
 }
 `
     }

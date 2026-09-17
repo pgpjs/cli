@@ -109,19 +109,28 @@ export function boxLines(color: boolean, lines: string[], tone: "blue" | "yellow
   return out;
 }
 
-const COMMANDS: Array<[string, string]> = [
+const CORE_COMMANDS: Array<[string, string]> = [
   ["init", "Initialize PGPJS in a project"],
   ["install", "Install PGPJS integrations"],
   ["key", "Manage OpenPGP keys"],
   ["encrypt", "Encrypt data"],
   ["decrypt", "Decrypt data"],
   ["sign", "Sign data"],
-  ["verify", "Verify signatures"],
-  ["doctor", "Diagnose project configuration"],
-  ["security", "Security checks"],
-  ["mcp", "Run and configure MCP"],
-  ["config", "Show effective configuration"]
+  ["verify", "Verify signatures"]
 ];
+
+const DEVELOPER_COMMANDS: Array<[string, string]> = [
+  ["doctor", "Diagnose project configuration"],
+  ["security", "Run security checks"],
+  ["config", "Manage configuration"]
+];
+
+const MCP_COMMANDS: Array<[string, string]> = [
+  ["mcp", "Run and configure MCP"],
+  ["token", "Manage MCP authentication tokens"]
+];
+
+const COMMANDS: Array<[string, string]> = [...CORE_COMMANDS, ...DEVELOPER_COMMANDS, ...MCP_COMMANDS];
 
 const OPTIONS: Array<[string, string]> = [
   ["--json", "Machine-readable output"],
@@ -144,9 +153,10 @@ const ROOT_EXAMPLES = [
 const EXAMPLES_BY_COMMAND: Record<string, string[]> = {
   pgpjs: ROOT_EXAMPLES,
   "pgpjs init": ["pgpjs init"],
-  "pgpjs install": ["pgpjs install next", "pgpjs install node"],
+  "pgpjs install": ["pgpjs install react", "pgpjs install node", "pgpjs install next"],
   "pgpjs install next": ["pgpjs install next"],
   "pgpjs install node": ["pgpjs install node"],
+  "pgpjs install react": ["pgpjs install react"],
   "pgpjs key": ["pgpjs key generate", "pgpjs key list", "pgpjs key show <id>"],
   "pgpjs key generate": [
     "pgpjs key generate --name Alice --email alice@example.com --passphrase-file ./pass"
@@ -164,15 +174,16 @@ const EXAMPLES_BY_COMMAND: Record<string, string[]> = {
   "pgpjs doctor": ["pgpjs doctor"],
   "pgpjs security": ["pgpjs security scan"],
   "pgpjs security scan": ["pgpjs security scan", "pgpjs security scan --fix"],
-  "pgpjs mcp": ["pgpjs mcp start", "pgpjs mcp token create --name local"],
+  "pgpjs mcp": ["pgpjs mcp start", "pgpjs mcp status", "pgpjs mcp config"],
   "pgpjs mcp start": ["pgpjs mcp start", "pgpjs mcp start --http --port 8787"],
-  "pgpjs mcp token": ["pgpjs mcp token create --name local"],
-  "pgpjs mcp token create": ["pgpjs mcp token create --name local --scope encrypt --scope verify"],
-  "pgpjs mcp token list": ["pgpjs mcp token list"],
-  "pgpjs mcp token revoke": ["pgpjs mcp token revoke <id>"],
-  "pgpjs mcp token rotate": ["pgpjs mcp token rotate <id>"],
+  "pgpjs mcp status": ["pgpjs mcp status"],
   "pgpjs mcp config": ["pgpjs mcp config"],
   "pgpjs mcp audit": ["pgpjs mcp audit"],
+  "pgpjs token": ["pgpjs token create --name local", "pgpjs token list"],
+  "pgpjs token create": ["pgpjs token create --name local --scope encrypt --scope verify"],
+  "pgpjs token list": ["pgpjs token list"],
+  "pgpjs token revoke": ["pgpjs token revoke <id>"],
+  "pgpjs token rotate": ["pgpjs token rotate <id>"],
   "pgpjs config": ["pgpjs config show"],
   "pgpjs config show": ["pgpjs config show"]
 };
@@ -255,13 +266,17 @@ export function formatRootHelp(color = wantsColor(), version = "1.0.0"): string 
     "",
     rule(color, width),
     "",
-    ...ROOT_EXAMPLES.map((ex) => promptLine(color, ex)),
-    "",
     heading(color, "Usage"),
     `  ${c.hex("pgpjs")} ${c.dim("<command> [options]")}`,
     "",
-    heading(color, "Commands"),
-    ...namedList(color, COMMANDS),
+    heading(color, "Core"),
+    ...namedList(color, CORE_COMMANDS, 12),
+    "",
+    heading(color, "Developer"),
+    ...namedList(color, DEVELOPER_COMMANDS, 12),
+    "",
+    heading(color, "AI / MCP"),
+    ...namedList(color, MCP_COMMANDS, 12),
     "",
     heading(color, "Options"),
     ...namedList(color, OPTIONS)
@@ -359,6 +374,11 @@ export function formatJsonHelp(version = "1.0.0"): string {
       tagline: "OpenPGP encryption toolkit",
       cliVersion: version,
       commands: COMMANDS.map(([name, description]) => ({ name, description })),
+      groups: {
+        core: CORE_COMMANDS.map(([name, description]) => ({ name, description })),
+        developer: DEVELOPER_COMMANDS.map(([name, description]) => ({ name, description })),
+        mcp: MCP_COMMANDS.map(([name, description]) => ({ name, description }))
+      },
       examples: ROOT_EXAMPLES
     }
   });

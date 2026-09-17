@@ -1,6 +1,6 @@
 # CLI reference
 
-`pgpjs` is a **terminal** program. `pgpjs` and `pgpjs --help` print a dark-terminal splash (key icon, examples, commands). Subcommands print the same chrome — not a web page and not man-page HTML.
+`pgpjs` is a **terminal** program. `pgpjs` and `pgpjs --help` print a dark-terminal splash (key icon, grouped Core / Developer / AI·MCP commands). Subcommands print the same chrome — not a web page and not man-page HTML.
 
 All commands accept the global flags `--json`, `--quiet`, `--verbose`, `--no-color`, `--no-input`, `--config <path>`, `--home <path>`, `--config-format json|any`.
 
@@ -30,9 +30,19 @@ All commands accept the global flags `--json`, `--quiet`, `--verbose`, `--no-col
 
 Detects Next.js (App vs Pages), Nuxt, Remix, Vite, React, Express, Hono, Astro, or plain Node; TypeScript vs JavaScript; npm/pnpm/yarn/bun. Writes `pgpjs.config.ts`, `.env.example`, `.pgpjs/`, and appends `.pgpjs/` to `.gitignore`. `--dry-run` prints the plan.
 
-### `pgpjs install next`
+### `pgpjs install next|node|react`
 
-Scaffolds `src/lib/pgpjs/{client,server,keys,encryption}.ts` and an example App Router handler. Installs `openpgp@6.3.1` and `server-only`. Refuses non-Next projects unless `--force`.
+- `next` — App Router client/server split plus an example Route Handler.
+- `react` — browser-only helpers (`encryptToPublicKey`, `postToNodeNetwork`). No private keys.
+- `node` — Node network server on `127.0.0.1:8788` (`/pgpjs/encrypt`, `/pgpjs/decrypt`, `/pgpjs/sign`, `/health`). CORS is limited to loopback origins. Private keys stay on the server.
+
+### `pgpjs mcp start|status|config`
+
+stdio by default. `--http --port --host --allow-remote`. HTTP requires `PGPJS_MCP_TOKEN` and binds 127.0.0.1 unless `--allow-remote`. `status` reports config, tokens, and whether the HTTP port is listening.
+
+### `pgpjs token create|list|revoke|rotate`
+
+Tokens are `pgpjs_mcp_<id>_<secret>_<checksum>`. Only a SHA-256 is stored. The full token is printed once. This is a top-level command (not nested under `mcp`).
 
 ### `pgpjs key generate`
 
@@ -65,18 +75,6 @@ Pass / warn / fail checks. Exit 0 if no fail.
 ### `pgpjs security scan`
 
 `--fix`, `--fail-on critical|high|medium|low` (default high). Exit 12 when findings meet the threshold. Findings report file and line, never the secret.
-
-### `pgpjs mcp start`
-
-stdio by default. `--http --port --host --allow-remote`. HTTP requires `PGPJS_MCP_TOKEN` and binds 127.0.0.1 unless `--allow-remote`.
-
-### `pgpjs mcp token create|list|revoke|rotate`
-
-Tokens are `pgpjs_mcp_<id>_<secret>_<checksum>`. Only a SHA-256 is stored. The full token is printed once.
-
-### `pgpjs mcp config`
-
-Prints a generic MCP client snippet with the resolved binary path.
 
 ### `pgpjs config show`
 

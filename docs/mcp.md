@@ -79,10 +79,10 @@ Rate limits: 60 ops/min/token, 10 key generations/hour.
 ## Tokens
 
 ```bash
-pgpjs mcp token create --name "Claude" --scope encrypt --scope verify --expires 30d
-pgpjs mcp token list
-pgpjs mcp token revoke <id>
-pgpjs mcp token rotate <id>
+pgpjs token create --name "Claude" --scope encrypt --scope verify --expires 30d
+pgpjs token list
+pgpjs token revoke <id>
+pgpjs token rotate <id>
 ```
 
 Format: `pgpjs_mcp_<8-char id>_<43-char secret>_<4-char checksum>`. Only `sha256(token)` is stored. The full token is printed once. Comparison is constant-time.
