@@ -8,21 +8,13 @@ pgpjs              # splash screen
 pgpjs --help       # same terminal UI
 ```
 
-```
-pgpjs                                              PGPJS CLI
-────────────────────────────────────────────────────────────────
+`pgpjs` in the terminal:
 
-      ____            PGPJS CLI
-     /    \________     OpenPGP encryption toolkit
-     \____/             ┌────────────┐
-       oo             │ CLI 1.0.0  │
-                      └────────────┘
+![pgpjs splash screen](docs/images/pgpjs-splash.png)
 
-    $ pgpjs key generate
-    $ pgpjs encrypt message.txt
+`pgpjs key --help`:
 
-PGP / OpenPGP                                 READY · LOCAL CRYPTO
-```
+![pgpjs key --help](docs/images/pgpjs-key-help.png)
 
 Install once, then initialize a Next.js or Node.js project, manage OpenPGP keys, encrypt and sign data, and expose a least-privilege MCP server to AI agents.
 
